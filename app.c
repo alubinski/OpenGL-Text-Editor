@@ -1,11 +1,39 @@
+#include <GL/glx.h>
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <stdio.h>
 #include <unistd.h>
 
+struct State {
+  Window win;
+  Display *dsp;
+  GLXContext gl_context;
+};
+
+struct State _state;
+
+void create_gl_context() {
+  int screen_id = DefaultScreen(_state.dsp);
+
+  int attribs[] = {GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None};
+
+  XVisualInfo *visual_info = glXChooseVisual(_state.dsp, screen_id, attribs);
+  if (!visual_info) {
+    fprintf(stderr, "No suitable Opengl visual found\n");
+    return;
+  }
+
+  _state.gl_context = glXCreateContext(_state.dsp, visual_info, NULL, GL_TRUE);
+  if (!_state.gl_context) {
+    fprintf(stderr, "OpenGL cannot be created\n");
+    return;
+  }
+}
+
 int main() {
-  Display *main_display = XOpenDisplay(0);
-  Window root_window = DefaultRootWindow(main_display);
+  _state.dsp = XOpenDisplay(0);
+  Window root_window = DefaultRootWindow(_state.dsp);
 
   int window_x = 0;
   int window_y = 0;
@@ -22,27 +50,31 @@ int main() {
   window_attributes.event_mask =
       StructureNotifyMask | KeyPressMask | KeyReleaseMask | ExposureMask;
 
-  Window main_window =
-      XCreateWindow(main_display, root_window, window_x, window_y, window_width,
+  _state.win =
+      XCreateWindow(_state.dsp, root_window, window_x, window_y, window_width,
                     window_height, border_width, window_depth, window_class,
                     window_visual, attribute_value_mask, &window_attributes);
 
-  XMapWindow(main_display, main_window);
-  XFlush(main_display);
+  XMapWindow(_state.dsp, _state.win);
+  XFlush(_state.dsp);
 
-  Atom atom_delete_window = XInternAtom(main_display, "WM_DELETE_WINDOW", True);
-  XSetWMProtocols(main_display, main_window, &atom_delete_window, 1);
+  Atom atom_delete_window = XInternAtom(_state.dsp, "WM_DELETE_WINDOW", True);
+  XSetWMProtocols(_state.dsp, _state.win, &atom_delete_window, 1);
+
+  create_gl_context();
+
+  glXMakeCurrent(_state.dsp, _state.win, _state.gl_context);
 
   int is_window_open = 1;
   while (is_window_open) {
     XEvent general_event;
-    XNextEvent(main_display, &general_event);
+    XNextEvent(_state.dsp, &general_event);
 
     switch (general_event.type) {
     case KeyPress:
     case KeyRelease: {
       XKeyPressedEvent *event = (XKeyPressedEvent *)&general_event;
-      if (event->keycode == XKeysymToKeycode(main_display, XK_Escape)) {
+      if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Escape)) {
         is_window_open = 0;
       }
     } break;
