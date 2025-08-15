@@ -1,5 +1,6 @@
 #include <X11/X.h>
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #include <unistd.h>
 
 int main() {
@@ -29,9 +30,20 @@ int main() {
   XMapWindow(main_display, main_window);
   XFlush(main_display);
 
-  while (1) {
+  int is_window_open = 1;
+  while (is_window_open) {
     XEvent general_event;
     XNextEvent(main_display, &general_event);
+
+    switch (general_event.type) {
+    case KeyPress:
+    case KeyRelease: {
+      XKeyPressedEvent *event = (XKeyPressedEvent *)&general_event;
+      if (event->keycode == XKeysymToKeycode(main_display, XK_Escape)) {
+        is_window_open = 0;
+      }
+    } break;
+    }
   }
 
   return 0;
