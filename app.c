@@ -3,16 +3,35 @@
 #include <unistd.h>
 
 int main() {
-  Display *dsp = XOpenDisplay(0);
+  Display *main_display = XOpenDisplay(0);
+  Window root_window = DefaultRootWindow(main_display);
 
-  Window rootWin = DefaultRootWindow(dsp);
-  Window win =
-      XCreateSimpleWindow(dsp, rootWin, 0, 0, 800, 600, 0, 0, 0x00aade87);
-  XMapWindow(dsp, win);
-  XFlush(dsp);
+  int window_x = 0;
+  int window_y = 0;
+  int window_width = 800;
+  int window_height = 600;
+  int border_width = 0;
+  int window_depth = CopyFromParent;
+  int window_class = CopyFromParent;
+  Visual *window_visual = CopyFromParent;
+
+  int attribute_value_mask = CWBackingPixel | CWEventMask;
+  XSetWindowAttributes window_attributes;
+  window_attributes.backing_pixel = 0xffffccaa;
+  window_attributes.event_mask =
+      StructureNotifyMask | KeyPressMask | KeyReleaseMask | ExposureMask;
+
+  Window main_window =
+      XCreateWindow(main_display, root_window, window_x, window_y, window_width,
+                    window_height, border_width, window_depth, window_class,
+                    window_visual, attribute_value_mask, &window_attributes);
+
+  XMapWindow(main_display, main_window);
+  XFlush(main_display);
 
   while (1) {
-    sleep(1);
+    XEvent general_event;
+    XNextEvent(main_display, &general_event);
   }
 
   return 0;
