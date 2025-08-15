@@ -30,6 +30,9 @@ int main() {
   XMapWindow(main_display, main_window);
   XFlush(main_display);
 
+  Atom atom_delete_window = XInternAtom(main_display, "WM_DELETE_WINDOW", True);
+  XSetWMProtocols(main_display, main_window, &atom_delete_window, 1);
+
   int is_window_open = 1;
   while (is_window_open) {
     XEvent general_event;
@@ -40,6 +43,11 @@ int main() {
     case KeyRelease: {
       XKeyPressedEvent *event = (XKeyPressedEvent *)&general_event;
       if (event->keycode == XKeysymToKeycode(main_display, XK_Escape)) {
+        is_window_open = 0;
+      }
+    } break;
+    case ClientMessage: {
+      if (general_event.xclient.data.l[0] == atom_delete_window) {
         is_window_open = 0;
       }
     } break;
