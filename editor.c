@@ -9,6 +9,7 @@
 #include <runara/runara.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 struct State {
@@ -17,6 +18,11 @@ struct State {
   GLXContext gl_context;
   RnState *render_state;
 };
+
+XIM xim;
+XIC xic;
+
+int32_t line_cursor;
 
 RnFont *_font;
 
@@ -42,6 +48,92 @@ void create_gl_context() {
   }
 }
 
+RnTextProps render_text(RnState *state, const char *text, RnFont *font,
+                        vec2s pos, RnColor color, int32_t cursor, bool render) {
+
+  // Get the harfbuzz text information for the string
+  RnHarfbuzzText *hb_text = rn_hb_text_from_str(state, *font, text);
+
+  // Set highest bearing as font size
+  hb_text->highest_bearing = _font->size;
+
+  vec2s start_pos = (vec2s){.x = pos.x, .y = pos.y};
+
+  // New line characters
+  const int32_t line_feed = 0x000A;
+  const int32_t carriage_return = 0x000D;
+  const int32_t line_seperator = 0x2028;
+  const int32_t paragraph_seperator = 0x2029;
+
+  float textheight = 0;
+
+  float scale = 1.0f;
+  if (font->selected_strike_size)
+    scale = ((float)font->size / (float)font->selected_strike_size);
+  for (unsigned int i = 0; i < hb_text->glyph_count; i++) {
+    // Get the glyph from the glyph index
+    RnGlyph glyph =
+        rn_glyph_from_codepoint(state, font, hb_text->glyph_info[i].codepoint);
+
+    uint32_t text_length = strlen(text);
+    uint32_t codepoint =
+        rn_utf8_to_codepoint(text, hb_text->glyph_info[i].cluster, text_length);
+    // Check if the unicode codepoint is a new line and advance
+    // to the next line if so
+    if (codepoint == line_feed || codepoint == carriage_return ||
+        codepoint == line_seperator || codepoint == paragraph_seperator) {
+      float font_height = font->face->size->metrics.height / 64.0f;
+      pos.x = start_pos.x;
+      pos.y += font_height;
+      textheight += font_height;
+      continue;
+    }
+
+    // Advance the x position by the tab width if
+    // we iterate a tab character
+    if (codepoint == '\t') {
+      pos.x += font->tab_w * font->space_w;
+      continue;
+    }
+
+    // If the glyph is not within the font, dont render it
+    if (!hb_text->glyph_info[i].codepoint) {
+      continue;
+    }
+    float x_advance = (hb_text->glyph_pos[i].x_advance / 64.0f) * scale;
+    float y_advance = (hb_text->glyph_pos[i].y_advance / 64.0f) * scale;
+    float x_offset = (hb_text->glyph_pos[i].x_offset / 64.0f) * scale;
+    float y_offset = (hb_text->glyph_pos[i].y_offset / 64.0f) * scale;
+
+    vec2s glyph_pos = {pos.x + x_offset,
+                       pos.y + hb_text->highest_bearing - y_offset};
+
+    // Render the glyph
+    if (render) {
+      rn_glyph_render(state, glyph, *font, glyph_pos, color);
+
+      if (i == cursor) {
+        rn_rect_render(state, pos, (vec2s){1, font->size}, RN_WHITE);
+      }
+    }
+
+    if (glyph.height > textheight) {
+      textheight = glyph.height;
+    }
+
+    // Advance to the next glyph
+    pos.x += x_advance;
+    pos.y += y_advance;
+  }
+
+  if (cursor == strlen(text)) {
+    rn_rect_render(state, pos, (vec2s){1, font->size}, RN_WHITE);
+  }
+
+  return (RnTextProps){
+      .width = pos.x - start_pos.x, .height = textheight, .paragraph_pos = pos};
+}
+
 void render(uint32_t render_w, uint32_t render_h) {
   glClear(GL_COLOR_BUFFER_BIT);
   vec4s clear_color = rn_color_to_zto(rn_color_from_hex(0x282828));
@@ -53,9 +145,8 @@ void render(uint32_t render_w, uint32_t render_h) {
 
   float y = 20;
   for (Line *l = lines; l != NULL; l = l->next) {
-
-    rn_text_render(_state.render_state, l->data, _font, (vec2s){20, y},
-                   RN_WHITE);
+    render_text(_state.render_state, l->data, _font, (vec2s){20, y}, RN_WHITE,
+                l == current_line ? line_cursor : -1, True);
     y += _font->size;
   }
 
@@ -66,6 +157,10 @@ void render(uint32_t render_w, uint32_t render_h) {
 
 int main() {
   _state.dsp = XOpenDisplay(0);
+
+  xim = XOpenIM(_state.dsp, NULL, NULL, NULL);
+  XSetLocaleModifiers("");
+
   Window root_window = DefaultRootWindow(_state.dsp);
 
   int window_x = 0;
@@ -90,6 +185,10 @@ int main() {
 
   XSelectInput(_state.dsp, _state.win, window_attributes.event_mask);
   XMapWindow(_state.dsp, _state.win);
+
+  xic = XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+                  XNClientWindow, _state.win, NULL);
+
   XFlush(_state.dsp);
 
   Atom atom_delete_window = XInternAtom(_state.dsp, "WM_DELETE_WINDOW", True);
@@ -106,9 +205,7 @@ int main() {
 
   _font = rn_load_font(_state.render_state, "./Iosevka-Regular.ttf", 24);
 
-  for (int i = 0; i < 5; i++) {
-    current_line = line_append(&lines, "HĀllo ");
-  }
+  current_line = line_append(&lines, "");
 
   render(window_width, window_height);
   int is_window_open = 1;
@@ -117,12 +214,44 @@ int main() {
     XNextEvent(_state.dsp, &general_event);
 
     switch (general_event.type) {
-    case KeyPress:
-    case KeyRelease: {
+      // case KeyRelease:
+    case KeyPress: {
       XKeyPressedEvent *event = (XKeyPressedEvent *)&general_event;
       if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Escape)) {
         is_window_open = 0;
+        break;
       }
+      if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Return)) {
+        current_line = line_add_after(lines, current_line, "");
+        line_cursor = 0;
+        render(window_width, window_height);
+        break;
+      }
+      if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Left)) {
+        if (line_cursor - 1 >= 0) {
+          line_cursor--;
+          render(window_width, window_height);
+          break;
+        }
+      }
+      if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Right)) {
+        if (line_cursor + 1 <= strlen(current_line->data)) {
+          line_cursor++;
+          render(window_width, window_height);
+          break;
+        }
+      }
+
+      KeySym key_sym;
+      char utf8_str[32];
+      Status status;
+      int len_utf8_str = Xutf8LookupString(
+          xic, event, utf8_str, sizeof(utf8_str) - 1, &key_sym, &status);
+      utf8_str[len_utf8_str] = '\0';
+
+      if (len_utf8_str != 0)
+        line_insert(current_line, utf8_str, line_cursor++);
+      render(window_width, window_height);
     } break;
     case ClientMessage: {
       if ((Atom)general_event.xclient.data.l[0] == atom_delete_window) {

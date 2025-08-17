@@ -57,6 +57,7 @@ Line *line_add_after(Line *head, Line *before, const char *text) {
   if (!line->data)
     return NULL;
 
+  line->next = before->next;
   before->next = line;
   line->prev = before;
   if (line->next != NULL) {
