@@ -6,6 +6,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <cglm/types-struct.h>
+#include <limits.h>
 #include <runara/runara.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -23,6 +24,7 @@ XIM xim;
 XIC xic;
 
 int32_t line_cursor;
+int32_t line_cursor_prev = INT_MIN;
 
 RnFont *_font;
 
@@ -224,22 +226,71 @@ int main() {
       if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Return)) {
         current_line = line_add_after(lines, current_line, "");
         line_cursor = 0;
+        line_cursor_prev = line_cursor;
         render(window_width, window_height);
         break;
       }
       if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Left)) {
         if (line_cursor - 1 >= 0) {
           line_cursor--;
-          render(window_width, window_height);
-          break;
+        } else if (current_line->prev) {
+          current_line = current_line->prev;
+          line_cursor = strlen(current_line->data);
         }
+        line_cursor_prev = line_cursor;
+        render(window_width, window_height);
+        break;
       }
       if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Right)) {
         if (line_cursor + 1 <= strlen(current_line->data)) {
           line_cursor++;
-          render(window_width, window_height);
-          break;
+        } else if (current_line->next) {
+          current_line = current_line->next;
+          line_cursor = 0;
         }
+        line_cursor_prev = line_cursor;
+        render(window_width, window_height);
+        break;
+      }
+      if (event->keycode == XKeysymToKeycode(_state.dsp, XK_BackSpace)) {
+        if (line_cursor - 1 >= 0) {
+          line_remove_at(current_line, --line_cursor);
+        } else if (current_line->prev) {
+          current_line = current_line->prev;
+          line_cursor = strlen(current_line->data);
+          if (strlen(current_line->next->data) != 0)
+            current_line->data =
+                strcat(current_line->data, current_line->next->data);
+
+          line_remove(&lines, current_line->next);
+        }
+        line_cursor_prev = line_cursor;
+        render(window_width, window_height);
+        break;
+      }
+      if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Up)) {
+        if (current_line->prev)
+          current_line = current_line->prev;
+        // if (line_cursor > strlen(current_line->data)) {
+        line_cursor = strlen(current_line->data) < line_cursor_prev
+                          ? strlen(current_line->data)
+                          : line_cursor_prev;
+
+        // line_cursor = strlen(current_line->data);
+        // }
+        render(window_width, window_height);
+        break;
+      }
+      if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Down)) {
+        if (current_line->next)
+          current_line = current_line->next;
+        // if (line_cursor > strlen(current_line->data))
+        //   line_cursor = strlen(current_line->data);
+        line_cursor = strlen(current_line->data) < line_cursor_prev
+                          ? strlen(current_line->data)
+                          : line_cursor_prev;
+        render(window_width, window_height);
+        break;
       }
 
       KeySym key_sym;
@@ -251,6 +302,7 @@ int main() {
 
       if (len_utf8_str != 0)
         line_insert(current_line, utf8_str, line_cursor++);
+      line_cursor_prev = line_cursor;
       render(window_width, window_height);
     } break;
     case ClientMessage: {
