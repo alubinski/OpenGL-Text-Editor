@@ -116,7 +116,7 @@ RnTextProps render_text(RnState *state, const char *text, RnFont *font,
       rn_glyph_render(state, glyph, *font, glyph_pos, color);
 
       if (i == cursor) {
-        rn_rect_render(state, pos, (vec2s){1, font->size}, RN_WHITE);
+        rn_rect_render(state, pos, (vec2s){1, 1.5f * font->size}, RN_WHITE);
       }
     }
 
@@ -130,7 +130,7 @@ RnTextProps render_text(RnState *state, const char *text, RnFont *font,
   }
 
   if (cursor == strlen(text)) {
-    rn_rect_render(state, pos, (vec2s){1, font->size}, RN_WHITE);
+    rn_rect_render(state, pos, (vec2s){1, 1.5f * font->size}, RN_WHITE);
   }
 
   return (RnTextProps){
@@ -150,7 +150,7 @@ void render(uint32_t render_w, uint32_t render_h) {
   for (Line *l = lines; l != NULL; l = l->next) {
     render_text(_state.render_state, l->data, _font, (vec2s){20, y}, RN_WHITE,
                 l == current_line ? line_cursor : -1, True);
-    y += _font->size;
+    y += _font->size * 1.5f;
   }
 
   rn_end(_state.render_state);
