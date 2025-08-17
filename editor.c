@@ -10,6 +10,7 @@
 #include <runara/runara.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -224,7 +225,16 @@ int main() {
         break;
       }
       if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Return)) {
-        current_line = line_add_after(lines, current_line, "");
+        if (line_cursor == strlen(current_line->data)) {
+          current_line = line_add_after(lines, current_line, "");
+        } else {
+          uint32_t new_line_len = strlen(current_line->data) - line_cursor;
+          char *new_line = malloc(new_line_len + 1);
+          strcpy(new_line, current_line->data + line_cursor);
+          current_line->data[line_cursor] = '\0';
+          current_line = line_add_after(lines, current_line, new_line);
+          free(new_line);
+        }
         line_cursor = 0;
         line_cursor_prev = line_cursor;
         render(window_width, window_height);
