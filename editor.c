@@ -1,3 +1,4 @@
+#include "data_structure.h"
 #include <GL/gl.h>
 #include <GL/glx.h>
 #include <GLFW/glfw3.h>
@@ -20,6 +21,8 @@ struct State {
 RnFont *_font;
 
 struct State _state;
+
+Line *lines, *current_line;
 
 void create_gl_context() {
   int screen_id = DefaultScreen(_state.dsp);
@@ -48,9 +51,13 @@ void render(uint32_t render_w, uint32_t render_h) {
 
   rn_begin(_state.render_state);
 
-  _font = rn_load_font(_state.render_state, "./Iosevka-Regular.ttf", 24);
+  float y = 20;
+  for (Line *l = lines; l != NULL; l = l->next) {
 
-  rn_text_render(_state.render_state, "text", _font, (vec2s){20, 20}, RN_WHITE);
+    rn_text_render(_state.render_state, l->data, _font, (vec2s){20, y},
+                   RN_WHITE);
+    y += _font->size;
+  }
 
   rn_end(_state.render_state);
 
@@ -96,6 +103,12 @@ int main() {
 
   _state.render_state =
       rn_init(window_x, window_height, (RnGLLoader)glXGetProcAddressARB);
+
+  _font = rn_load_font(_state.render_state, "./Iosevka-Regular.ttf", 24);
+
+  for (int i = 0; i < 5; i++) {
+    current_line = line_append(&lines, "HĀllo ");
+  }
 
   render(window_width, window_height);
   int is_window_open = 1;
