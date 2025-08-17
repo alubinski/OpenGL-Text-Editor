@@ -58,7 +58,7 @@ RnTextProps render_text(RnState *state, const char *text, RnFont *font,
   RnHarfbuzzText *hb_text = rn_hb_text_from_str(state, *font, text);
 
   // Set highest bearing as font size
-  hb_text->highest_bearing = _font->size;
+  hb_text->highest_bearing = font->size;
 
   vec2s start_pos = (vec2s){.x = pos.x, .y = pos.y};
 
@@ -175,6 +175,8 @@ int main() {
   int window_class = CopyFromParent;
   Visual *window_visual = CopyFromParent;
 
+  int font_size = 24;
+
   int attribute_value_mask = CWBackingPixel | CWEventMask;
   XSetWindowAttributes window_attributes;
   window_attributes.backing_pixel = 0xffffccaa;
@@ -206,7 +208,7 @@ int main() {
   _state.render_state =
       rn_init(window_x, window_height, (RnGLLoader)glXGetProcAddressARB);
 
-  _font = rn_load_font(_state.render_state, "./Iosevka-Regular.ttf", 24);
+  _font = rn_load_font(_state.render_state, "./Iosevka-Regular.ttf", font_size);
 
   current_line = line_append(&lines, "");
 
@@ -281,24 +283,41 @@ int main() {
       if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Up)) {
         if (current_line->prev)
           current_line = current_line->prev;
-        // if (line_cursor > strlen(current_line->data)) {
         line_cursor = strlen(current_line->data) < line_cursor_prev
                           ? strlen(current_line->data)
                           : line_cursor_prev;
 
-        // line_cursor = strlen(current_line->data);
-        // }
         render(window_width, window_height);
         break;
       }
       if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Down)) {
         if (current_line->next)
           current_line = current_line->next;
-        // if (line_cursor > strlen(current_line->data))
-        //   line_cursor = strlen(current_line->data);
         line_cursor = strlen(current_line->data) < line_cursor_prev
                           ? strlen(current_line->data)
                           : line_cursor_prev;
+        render(window_width, window_height);
+        break;
+      }
+      if (event->keycode == XKeysymToKeycode(_state.dsp, XK_plus) &&
+          event->state & ControlMask) {
+        if (font_size + 6 <= 90) {
+          font_size += 6;
+          // WORKAROUND - rn_set_font_size causes segmentation fault
+          _font = rn_load_font(_state.render_state, "./Iosevka-Regular.ttf",
+                               font_size);
+        }
+        render(window_width, window_height);
+        break;
+      }
+      if (event->keycode == XKeysymToKeycode(_state.dsp, XK_minus) &&
+          event->state & ControlMask) {
+        if (font_size - 6 >= 6) {
+          font_size -= 6;
+          // WORKAROUND - rn_set_font_size causes segmentation fault
+          _font = rn_load_font(_state.render_state, "./Iosevka-Regular.ttf",
+                               font_size);
+        }
         render(window_width, window_height);
         break;
       }
