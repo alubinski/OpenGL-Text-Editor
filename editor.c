@@ -51,8 +51,8 @@ void create_gl_context() {
   }
 }
 
-RnTextProps render_text(RnState *state, const char *text, RnFont *font,
-                        vec2s pos, RnColor color, int32_t cursor, bool render) {
+vec2s render_text(RnState *state, const char *text, RnFont *font, vec2s pos,
+                  RnColor color, int32_t cursor, bool render) {
 
   // Get the harfbuzz text information for the string
   RnHarfbuzzText *hb_text = rn_hb_text_from_str(state, *font, text);
@@ -69,6 +69,8 @@ RnTextProps render_text(RnState *state, const char *text, RnFont *font,
   const int32_t paragraph_seperator = 0x2029;
 
   float textheight = 0;
+
+  vec2s cursor_pos = {0, 0};
 
   float scale = 1.0f;
   if (font->selected_strike_size)
@@ -117,7 +119,10 @@ RnTextProps render_text(RnState *state, const char *text, RnFont *font,
 
       if (i == cursor) {
         rn_rect_render(state, pos, (vec2s){1, 1.5f * font->size}, RN_WHITE);
+        cursor_pos = pos;
       }
+    } else if (!render && i == cursor) {
+      cursor_pos = pos;
     }
 
     if (glyph.height > textheight) {
@@ -129,12 +134,14 @@ RnTextProps render_text(RnState *state, const char *text, RnFont *font,
     pos.y += y_advance;
   }
 
-  if (cursor == strlen(text)) {
+  if (cursor == strlen(text) && render) {
     rn_rect_render(state, pos, (vec2s){1, 1.5f * font->size}, RN_WHITE);
+    cursor_pos = pos;
+  } else if (!render && cursor == strlen(text)) {
+    cursor_pos = pos;
   }
 
-  return (RnTextProps){
-      .width = pos.x - start_pos.x, .height = textheight, .paragraph_pos = pos};
+  return cursor_pos;
 }
 
 void render(uint32_t render_w, uint32_t render_h) {
@@ -146,11 +153,41 @@ void render(uint32_t render_w, uint32_t render_h) {
 
   rn_begin(_state.render_state);
 
+  // float x_offset = line_cursor
+  // prerender cursor to get position
+  vec2s cursor_pos = render_text(_state.render_state, current_line->data, _font,
+                                 (vec2s){0, 0}, RN_WHITE, line_cursor, False);
+  // printf("%f", cursor_pos);
+
+  float x_offset = 0;
+  if (cursor_pos.x >= render_w) {
+    x_offset = cursor_pos.x - render_w + _font->size;
+  }
+
+  float y_offset = 0;
+  if (cursor_pos.y >= render_h) {
+    y_offset = cursor_pos.y - render_h + _font->size;
+  }
+
+  uint32_t line_num = 1;
+  float max_width = 0;
   float y = 20;
   for (Line *l = lines; l != NULL; l = l->next) {
-    render_text(_state.render_state, l->data, _font, (vec2s){20, y}, RN_WHITE,
+    char buff[16];
+    sprintf(buff, "%i", line_num);
+    float width = rn_text_props(_state.render_state, buff, _font).width;
+    if (width > max_width) {
+      max_width = width;
+    }
+
+    render_text(_state.render_state, buff, _font,
+                (vec2s){20 - x_offset, y - y_offset},
+                (RnColor){150, 150, 150, 255}, -1, True);
+    render_text(_state.render_state, l->data, _font,
+                (vec2s){20 - x_offset + max_width + 10, y - y_offset}, RN_WHITE,
                 l == current_line ? line_cursor : -1, True);
     y += _font->size * 1.5f;
+    line_num++;
   }
 
   rn_end(_state.render_state);
