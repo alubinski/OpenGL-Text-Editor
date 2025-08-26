@@ -1,2 +1,20 @@
-app: editor.c data_structure.o data_structure.h 
-	$(CC) editor.c data_structure.o -o editor.out -g -Wall -Wextra -pedantic -std=c99 -I/usr/include/freetype2 -lX11 -lGL -lrunara -lfreetype -lharfbuzz -lm 
+CC = gcc
+CFLAGS = -g -Wall -Wextra -pedantic -Winvalid-pch -std=c23 
+#-fsanitize=address 
+LDFLAGS = -lX11 -lGL -lrunara -lfreetype -lharfbuzz -lm
+SRCS = editor.c rope.c
+OBJS = $(SRCS:.c=.o)
+TARGET = editor.out
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o $@ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -rf $(OBJS) $(TARGET)
+
+.PHONY: all clean
