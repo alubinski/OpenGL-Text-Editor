@@ -32,6 +32,8 @@ struct List {
     List *next;
 };
 
+uint32_t get_length(Node *root);
+
 RopeTree *rebalance(List *leaves);
 
 void split(RopeTree *tree, uint32_t idx, RopeTree **split_tree_1,

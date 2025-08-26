@@ -8,7 +8,7 @@
 
 RopeTree *create_tree() {
     RopeTree *tree = malloc(sizeof(RopeTree));
-    tree->root = NULL;
+    tree->root = nullptr;
     tree->length = 0;
     tree->height = 0;
     tree->nodes_count = 0;
@@ -17,11 +17,15 @@ RopeTree *create_tree() {
 
 Node *create_node(const char *value) {
     Node *node = malloc(sizeof(Node));
-    // strncpy(node->data, value, sizeof(node->data) - 1);
-    node->data = strdup(value);
-    node->parent = NULL;
-    node->left = NULL;
-    node->right = NULL;
+    // strncpy(node->data, value, sizeof(node->data) - 1)
+    if (strlen(value) > 0) {
+        node->data = strdup(value);
+    } else {
+        node->data = nullptr;
+    }
+    node->parent = nullptr;
+    node->left = nullptr;
+    node->right = nullptr;
     node->rank = strlen(value);
     return node;
 }
@@ -48,6 +52,15 @@ int smallest_fib_GE(int n) {
     return fibonacci(i);
 }
 
+uint32_t get_length(Node *root) {
+    if (!root)
+        return 0;
+    if (!root->left && !root->right) {
+        return strlen(root->data);
+    }
+    return get_length(root->left) + get_length(root->right);
+}
+
 bool is_tree_balanced(RopeTree *tree) {
     if (tree->height >= smallest_fib_GE(tree->nodes_count)) {
         return false;
@@ -61,7 +74,7 @@ RopeTree *rebalance(List *leaves) {
         return rebalanced_tree;
 
     Node *current_root = leaves->leaf;
-    current_root->parent = NULL;
+    current_root->parent = nullptr;
     leaves = leaves->next;
 
     while (leaves) {
@@ -69,7 +82,7 @@ RopeTree *rebalance(List *leaves) {
             leaves = leaves->next;
             continue;
         }
-        leaves->leaf->parent = NULL;
+        leaves->leaf->parent = nullptr;
         current_root = concat(current_root, leaves->leaf);
         leaves = leaves->next;
     }
@@ -80,7 +93,7 @@ RopeTree *rebalance(List *leaves) {
 
 Node *copy_tree(Node *root) {
     if (!root)
-        return NULL;
+        return nullptr;
 
     Node *new_node = create_node(root->data);
     new_node->rank = root->rank;
@@ -109,8 +122,8 @@ void split(RopeTree *tree, uint32_t idx, RopeTree **split_tree_1,
             Node *node_to_concat = current->right;
 
             if (!(*split_tree_2)->root) {
-                current->right->parent = NULL;
-                current->right = NULL;
+                current->right->parent = nullptr;
+                current->right = nullptr;
                 (*split_tree_2)->root = node_to_concat;
                 current = current->parent;
                 continue;
@@ -123,8 +136,8 @@ void split(RopeTree *tree, uint32_t idx, RopeTree **split_tree_1,
 
             if (current->parent)
                 current->parent->rank -= weight_to_substract;
-            current->right->parent = NULL;
-            current->right = NULL;
+            current->right->parent = nullptr;
+            current->right = nullptr;
 
             (*split_tree_2)->root =
                 concat((*split_tree_2)->root, node_to_concat);
@@ -150,19 +163,19 @@ void split(RopeTree *tree, uint32_t idx, RopeTree **split_tree_1,
 
 void split_rec(Node *node, uint32_t idx, Node **left, Node **right) {
     if (!node) {
-        *left = *right = NULL;
+        *left = *right = nullptr;
         return;
     }
 
     if (!node->left && !node->right) {
         if (idx >= node->rank) {
             *left = node;
-            *right = NULL;
+            *right = nullptr;
         } else {
             char *left_str = strndup(node->data, idx);
             char *right_str = strdup(node->data + idx);
-            *left = strlen(left_str) > 0 ? create_node(left_str) : NULL;
-            *right = strlen(right_str) > 0 ? create_node(right_str) : NULL;
+            *left = strlen(left_str) > 0 ? create_node(left_str) : nullptr;
+            *right = strlen(right_str) > 0 ? create_node(right_str) : nullptr;
             free(left_str);
             free(right_str);
         }
@@ -274,9 +287,9 @@ RopeTree *insert(RopeTree *tree, uint32_t idx, char *data) {
     free_not_leaves_nodes(tree->root);
     RopeTree *balanced = rebalance(leaves);
     free_list(leaves);
-    leaves = NULL;
+    leaves = nullptr;
     free(tree);
-    tree = NULL;
+    tree = nullptr;
 
     balanced->length = length;
     balanced->height = calc_tree_height(balanced->root);
@@ -317,14 +330,14 @@ RopeTree *append(RopeTree *tree, char *data) {
 
 RopeTree *rope_delete(RopeTree *tree, uint32_t start, uint32_t length) {
     uint32_t size = tree->length;
-    // RopeTree *split_tree_1 = NULL;
-    // RopeTree *split_tree_2 = NULL;
-    // RopeTree *split_tree_3 = NULL;
-    // RopeTree *split_tree_4 = NULL;
+    // RopeTree *split_tree_1 = nullptr;
+    // RopeTree *split_tree_2 = nullptr;
+    // RopeTree *split_tree_3 = nullptr;
+    // RopeTree *split_tree_4 = nullptr;
 
-    if (tree->root->left == NULL && tree->root->right == NULL) {
+    if (tree->root->left == nullptr && tree->root->right == nullptr) {
         free(tree->root);
-        tree->root = NULL;
+        tree->root = nullptr;
         return tree;
     }
 
@@ -352,18 +365,18 @@ RopeTree *rope_delete(RopeTree *tree, uint32_t start, uint32_t length) {
     //
     // post_order_delete(tree->root);
     // free(tree);
-    // tree = NULL;
+    // tree = nullptr;
     // // if (split_tree_2->root) {
     // //     post_order_delete(split_tree_2->root);
     // //     free(split_tree_2);
-    // //     split_tree_2 = NULL;
+    // //     split_tree_2 = nullptr;
     // // }
     // //
     // // if (split_tree_3->root) {
     //     post_order_delete(split_tree_3->root);
     //     // Gives Exception Why?
     //     // free(split_tree_3);
-    //     split_tree_3 = NULL;
+    //     split_tree_3 = nullptr;
     // }
 
     // tree = create_tree();
@@ -375,8 +388,8 @@ RopeTree *rope_delete(RopeTree *tree, uint32_t start, uint32_t length) {
     //     tree->root = split_tree_4->root;
     // }
     //
-    if (tree->root == NULL) {
-        return NULL;
+    if (tree->root == nullptr) {
+        return nullptr;
     }
 
     tree->length = size - length;
@@ -391,9 +404,9 @@ RopeTree *rope_delete(RopeTree *tree, uint32_t start, uint32_t length) {
     free_not_leaves_nodes(tree->root);
     RopeTree *balanced = rebalance(leaves);
     free_list(leaves);
-    leaves = NULL;
+    leaves = nullptr;
     free(tree);
-    tree = NULL;
+    tree = nullptr;
 
     balanced->length = size - length;
     balanced->height = calc_tree_height(balanced->root);
@@ -403,7 +416,7 @@ RopeTree *rope_delete(RopeTree *tree, uint32_t start, uint32_t length) {
 }
 
 void free_not_leaves_nodes(Node *root) {
-    if (root || (root->left != NULL && root->right != NULL)) {
+    if (root || (root->left != nullptr && root->right != nullptr)) {
         return;
     }
     Node *tmp = root;
@@ -449,7 +462,7 @@ void in_order_printf(RopeTree *tree) {
 
 char *in_order(RopeTree *tree) {
     if (!tree)
-        return NULL;
+        return nullptr;
 
     char *text = calloc(tree->length * 2 * CHUNK_BASE, sizeof(char));
     Node **stack = malloc(tree->length * sizeof(*stack));
@@ -464,7 +477,7 @@ char *in_order(RopeTree *tree) {
         }
         if (stack_index) {
             current = stack[--stack_index];
-            if (current->left == NULL && current->right == NULL) {
+            if (current->left == nullptr && current->right == nullptr) {
                 for (int i = 0; i < 2 * CHUNK_BASE; i++) {
                     if (current->data[i] == '\0')
                         break;
@@ -511,17 +524,17 @@ Node *get_index_node(RopeTree *tree, uint32_t *idx) {
 
 List *get_leaves(RopeTree *tree) {
     if (!tree || !tree->root)
-        return NULL;
+        return nullptr;
 
     if (tree->length == 1) {
         List *new_leaf = malloc(sizeof(List));
         new_leaf->leaf = tree->root;
-        new_leaf->next = NULL;
+        new_leaf->next = nullptr;
         return new_leaf;
     }
 
-    List *leaves = NULL;
-    List *leaves_start = NULL;
+    List *leaves = nullptr;
+    List *leaves_start = nullptr;
     int32_t stack_capacity = tree->nodes_count;
     Node **stack = malloc(stack_capacity * sizeof(*stack));
     Node *current = tree->root;
@@ -540,10 +553,10 @@ List *get_leaves(RopeTree *tree) {
         if (stack_index) {
             current = stack[--stack_index];
 
-            if (current->left == NULL && current->right == NULL) {
+            if (current->left == nullptr && current->right == nullptr) {
                 List *new_leaf = malloc(sizeof(List));
                 new_leaf->leaf = current;
-                new_leaf->next = NULL;
+                new_leaf->next = nullptr;
 
                 if (!leaves_start) {
                     leaves_start = new_leaf;
@@ -596,7 +609,7 @@ int count_nodes(Node *root) {
 }
 
 int calc_tree_height(Node *root) {
-    if (root == NULL)
+    if (root == nullptr)
         return 0;
     int leftHeight = calc_tree_height(root->left);
     int rightHeight = calc_tree_height(root->right);
@@ -648,7 +661,7 @@ void post_order_delete(Node *root) {
     //         }
     //     }
     // }
-    // tree->root = NULL;
+    // tree->root = nullptr;
     // tree->length = 0;
     // free(stack);
     // free(boolStack);
