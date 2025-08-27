@@ -8,6 +8,6 @@
 ### TO-DO
 
 - Add saving and loading files
-- Add undo & redo commands
+- Add undo & redo commands (Added memento implementation) need to add logic for allocating stack of momentos for undo and redo
 - Add word wrapping
-- Code cleanup
+- Code cleanup (Rope implementation need serious cleanup, also should redo render function - rendering line numbers is broken)

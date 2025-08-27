@@ -1,3 +1,4 @@
+#include "memento.h"
 #include "rope.h"
 #include <GL/gl.h>
 #include <GL/glx.h>
@@ -38,7 +39,7 @@ struct Line {
 };
 
 struct Cursor cursor =
-    (struct Cursor){.x = 0, .line = NULL, .char_idx = 0, .x_swap = INT_MIN};
+    (struct Cursor){.x = 0, .line = nullptr, .char_idx = 0, .x_swap = INT_MIN};
 
 XIM xim;
 XIC xic;
@@ -70,7 +71,7 @@ void create_gl_context() {
     }
 
     _state.gl_context =
-        glXCreateContext(_state.dsp, visual_info, NULL, GL_TRUE);
+        glXCreateContext(_state.dsp, visual_info, nullptr, GL_TRUE);
     if (!_state.gl_context) {
         fprintf(stderr, "OpenGL cannot be created\n");
         return;
@@ -194,7 +195,7 @@ void render(uint32_t render_w, uint32_t render_h) {
     List *leaves = get_leaves(rope_tree);
     List *leaves_start = leaves;
 
-    for (List *l = leaves; l != NULL; l = l->next) {
+    for (List *l = leaves; l != nullptr; l = l->next) {
 
         render_text(_state.render_state, l->leaf->data, _font,
                     (vec2s){x - x_offset + max_width + 10, y - y_offset},
@@ -222,8 +223,8 @@ void render(uint32_t render_w, uint32_t render_h) {
     glXSwapBuffers(_state.dsp, _state.win);
 
     free_list(leaves_start);
-    leaves = NULL;
-    leaves_start = NULL;
+    leaves = nullptr;
+    leaves_start = nullptr;
 }
 
 Line *add_new_line(Line *prev) {
@@ -241,7 +242,7 @@ Line *add_new_line(Line *prev) {
 int main() {
     _state.dsp = XOpenDisplay(0);
 
-    xim = XOpenIM(_state.dsp, NULL, NULL, NULL);
+    xim = XOpenIM(_state.dsp, nullptr, nullptr, nullptr);
     XSetLocaleModifiers("");
 
     Window root_window = DefaultRootWindow(_state.dsp);
@@ -272,7 +273,7 @@ int main() {
     XMapWindow(_state.dsp, _state.win);
 
     xic = XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
-                    XNClientWindow, _state.win, NULL);
+                    XNClientWindow, _state.win, nullptr);
 
     XFlush(_state.dsp);
 
@@ -293,7 +294,8 @@ int main() {
 
     rope_tree = create_tree();
 
-    cursor.line = add_new_line(NULL);
+    Memento *m;
+    cursor.line = add_new_line(nullptr);
 
     render(window_width, window_height);
     int is_window_open = 1;
@@ -401,6 +403,20 @@ int main() {
                     _font = rn_load_font(_state.render_state,
                                          "./Iosevka-Regular.ttf", font_size);
                 }
+                render(window_width, window_height);
+                break;
+            }
+            struct Cursor prev_cursor;
+            if (event->keycode == XKeysymToKeycode(_state.dsp, XK_S) &&
+                event->state & ControlMask) {
+                m = create_memento(rope_tree);
+                prev_cursor = cursor;
+                break;
+            }
+            if (event->keycode == XKeysymToKeycode(_state.dsp, XK_U) &&
+                event->state & ControlMask) {
+                rope_tree = restore_from_memento(m);
+                cursor = prev_cursor;
                 render(window_width, window_height);
                 break;
             }
