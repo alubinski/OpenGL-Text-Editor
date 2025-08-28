@@ -56,7 +56,7 @@ uint32_t line_num = 0;
 
 vec2s get_cursor_pos() {
     return (vec2s){.x = cursor.x * _font->space_w,
-                   .y = cursor.line->idx * _font->size * 1.5f};
+                   .y = (cursor.line->idx - 1) * _font->size * 1.5f};
 }
 
 void create_gl_context() {
@@ -188,6 +188,14 @@ void render(uint32_t render_w, uint32_t render_h) {
     if (width > max_width) {
         max_width = width;
     }
+    for (int i = 1; i <= line_num; i++) {
+        sprintf(buff, "%d", i);
+        render_text(_state.render_state, buff, _font,
+                    (vec2s){20 - x_offset, y - y_offset},
+                    (RnColor){150, 150, 150, 255}, -1, True);
+        y += _font->size * 1.5f;
+    }
+    y = 20;
     rn_rect_render(
         _state.render_state,
         (vec2s){x + cursor_pos.x - x_offset + max_width + 10, y + cursor_pos.y},
@@ -209,15 +217,6 @@ void render(uint32_t render_w, uint32_t render_h) {
         x += _font->space_w;
     }
 
-    y = 20;
-    for (int i = 1; i <= line_num; i++) {
-        sprintf(buff, "%i", i);
-        render_text(_state.render_state, buff, _font,
-                    (vec2s){20 - x_offset, y - y_offset},
-                    (RnColor){150, 150, 150, 255}, -1, True);
-        y += _font->size * 1.5f;
-    }
-
     rn_end(_state.render_state);
 
     glXSwapBuffers(_state.dsp, _state.win);
@@ -230,12 +229,13 @@ void render(uint32_t render_w, uint32_t render_h) {
 Line *add_new_line(Line *prev) {
     Line *new_line = malloc(sizeof(Line));
     new_line->length = 0;
-    new_line->idx = line_num;
+    new_line->idx = prev ? prev->idx + 1 : 1;
     new_line->prev = prev;
     if (prev) {
-        prev->next = new_line;
         new_line->next = prev->next;
+        prev->next = new_line;
     }
+    line_num++;
     return new_line;
 }
 
@@ -316,10 +316,17 @@ int main() {
                 rope_tree = insert(rope_tree, cursor.char_idx, "\n");
                 cursor.char_idx++;
 
-                line_num++;
+                if (cursor.x != cursor.line->length) {
+                    int32_t tmp = cursor.line->length;
+                    cursor.line->length = cursor.x;
+                    cursor.line = add_new_line(cursor.line);
+                    cursor.line->length = tmp - cursor.x;
+                } else {
+                    cursor.line = add_new_line(cursor.line);
+                }
+
                 cursor.x = 0;
                 cursor.x_swap = cursor.x;
-                cursor.line = add_new_line(cursor.line);
                 render(window_width, window_height);
                 break;
             }
@@ -327,10 +334,10 @@ int main() {
                 if (cursor.x - 1 >= 0) {
                     cursor.x--;
                     cursor.char_idx--;
-                } else if (cursor.line->idx - 1 >= 0) {
+                } else if (cursor.line->idx - 1 > 0) {
                     cursor.line = cursor.line->prev;
                     cursor.x = cursor.line->length;
-                    cursor.char_idx--;
+                    cursor.char_idx -= 1;
                 }
                 cursor.x_swap = cursor.x;
                 render(window_width, window_height);
@@ -343,32 +350,38 @@ int main() {
                 } else if (cursor.line->idx + 1 <= line_num) {
                     cursor.x = 0;
                     cursor.line = cursor.line->next;
-                    cursor.char_idx++;
+                    cursor.char_idx += 1;
                 }
                 cursor.x_swap = cursor.x;
                 render(window_width, window_height);
                 break;
             }
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_BackSpace)) {
-
-                if (cursor.char_idx - 1 >= 0) {
-                    cursor.char_idx--;
-                    rope_tree = rope_delete(rope_tree, cursor.char_idx, 1);
-                }
-
+                // if (cursor.x == cursor.line->length) {
+                //     cursor.char_idx--;
+                // }
+                cursor.line->length--;
                 if (cursor.x - 1 >= 0) {
                     cursor.x--;
+                } else if (cursor.line->idx - 1 > 0) {
+                    cursor.line = cursor.line->prev;
+                    cursor.x = cursor.line->length;
+                    line_num--;
                 }
-                cursor.line->length--;
+                if (cursor.char_idx - 1 >= 0) {
+                    cursor.char_idx -= 1;
+                    rope_tree = rope_delete(rope_tree, cursor.char_idx, 1);
+                }
                 render(window_width, window_height);
                 break;
             }
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Up)) {
-                if (cursor.line->idx - 1 >= 0) {
+                if (cursor.line->idx - 1 > 0) {
                     int32_t tmp_x = cursor.x;
                     cursor.line = cursor.line->prev;
                     cursor.x = MIN(cursor.line->length, cursor.x_swap);
-                    cursor.char_idx -= (tmp_x + cursor.line->length - cursor.x);
+                    cursor.char_idx -=
+                        (tmp_x + cursor.line->length - cursor.x + 1);
                 }
                 render(window_width, window_height);
                 break;
@@ -379,7 +392,7 @@ int main() {
                     cursor.line = cursor.line->next;
                     cursor.x = MIN(cursor.line->length, cursor.x_swap);
                     cursor.char_idx +=
-                        cursor.line->prev->length - tmp_x + cursor.x;
+                        cursor.line->prev->length - tmp_x + cursor.x + 1;
                 }
                 render(window_width, window_height);
                 break;
