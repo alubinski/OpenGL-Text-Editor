@@ -17,6 +17,5 @@
 - Add saving and loading files
 - Add undo & redo commands (Added memento implementation) need to add logic for allocating stack of momentos for undo and redo
 - Add word wrapping
-- fix rendering line numbers - currentyly not rendering current line number
 - Seperate render function in editor.c
 - Code cleanup
