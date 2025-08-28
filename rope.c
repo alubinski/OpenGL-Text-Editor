@@ -246,12 +246,12 @@ List *get_leaves(RopeTree *tree) {
     if (!tree || !tree->root)
         return nullptr;
 
-    if (tree->length == 1) {
-        List *new_leaf = malloc(sizeof(List));
-        new_leaf->leaf = tree->root;
-        new_leaf->next = nullptr;
-        return new_leaf;
-    }
+    // if (tree->length == 1) {
+    //     List *new_leaf = malloc(sizeof(List));
+    //     new_leaf->leaf = tree->root;
+    //     new_leaf->next = nullptr;
+    //     return new_leaf;
+    // }
 
     List *leaves = nullptr;
     List *leaves_start = nullptr;
