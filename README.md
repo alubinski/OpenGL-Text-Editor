@@ -1,5 +1,12 @@
 # OpenGL-Text-Editor
 
+## Goals
+- learning about data structures suited for text editors such as Rope, Gap Buffer, Piece Table
+    - I decided on implementing rope data structures
+- Learn about efficient way of implementing undo & redo commands
+- Learn about rendring in Opengl
+- Learn about new features of C23 
+
 ###  Requirements
 - OpenGL
 - XLib
@@ -10,4 +17,6 @@
 - Add saving and loading files
 - Add undo & redo commands (Added memento implementation) need to add logic for allocating stack of momentos for undo and redo
 - Add word wrapping
-- Code cleanup (Rope implementation need serious cleanup, also should redo render function - rendering line numbers is broken)
+- fix rendering line numbers - currentyly not rendering current line number
+- Seperate render function in editor.c
+- Code cleanup
