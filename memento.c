@@ -64,6 +64,7 @@ Node *deserialize_heler(char **str) {
         (*str)++;
     (*str)++; // skip space
 
+    Node *node = malloc(sizeof(Node));
     if (type == 'L') {
         char *start = *str;
         while (**str != ' ')
@@ -73,12 +74,13 @@ Node *deserialize_heler(char **str) {
         strncpy(data, start, len);
         data[len] = '\0';
         (*str)++;
-        Node *node = create_node(data);
+        node->data = strdup(data);
         free(data);
         node->rank = rank;
+        node->left = nullptr;
+        node->right = nullptr;
         return node;
     } else {
-        Node *node = create_node("");
         node->rank = rank;
         node->data = nullptr;
         node->left = deserialize_heler(str);
@@ -109,7 +111,7 @@ RopeTree *restore_from_memento(Memento *m) {
     RopeTree *restored = deserialize(m->serialized_rope);
     restored->nodes_count = count_nodes(restored->root);
     restored->height = calc_tree_height(restored->root);
-    restored->length = get_length(restored->root);
+    restored->length = calculate_length(restored->root);
     return restored;
 }
 

@@ -6,6 +6,31 @@
 #include <string.h>
 #include <unistd.h>
 
+Node *create_leaf(const char *data) {
+    Node *node = malloc(sizeof(Node));
+    if (!node) {
+        perror("Failed to allocate leaf node");
+    }
+
+    node->rank = strlen(data);
+    node->data = strndup(data, node->rank + 1);
+    node->data[node->rank] = '\0';
+    node->left = nullptr;
+    node->right = nullptr;
+    return node;
+}
+
+Node *create_internal(Node *left, Node *right) {
+    Node *node = malloc(sizeof(Node));
+    if (!node) {
+        perror("Failed to allocate internal node");
+    }
+    node->data = nullptr;
+    node->left = left;
+    node->right = right;
+    node->rank = calculate_rank(node);
+    return node;
+}
 RopeTree *create_tree() {
     RopeTree *tree = malloc(sizeof(RopeTree));
     tree->root = nullptr;
@@ -15,206 +40,11 @@ RopeTree *create_tree() {
     return tree;
 }
 
-Node *create_node(const char *value) {
-    Node *node = malloc(sizeof(Node));
-    // strncpy(node->data, value, sizeof(node->data) - 1)
-    if (strlen(value) > 0) {
-        node->data = strdup(value);
-    } else {
-        node->data = nullptr;
-    }
-    node->parent = nullptr;
-    node->left = nullptr;
-    node->right = nullptr;
-    node->rank = strlen(value);
-    return node;
-}
-
-// Function to generate Fibonacci numbers up to a limit
-int fibonacci(int n) {
-    if (n <= 1)
-        return n;
-    int a = 0, b = 1, c;
-    for (int i = 2; i <= n; i++) {
-        c = a + b;
-        a = b;
-        b = c;
-    }
-    return b;
-}
-
-// Function to find the smallest Fibonacci number >= n
-int smallest_fib_GE(int n) {
-    int i = 0;
-    while (fibonacci(i) < n) {
-        i++;
-    }
-    return fibonacci(i);
-}
-
-uint32_t get_length(Node *root) {
-    if (!root)
-        return 0;
-    if (!root->left && !root->right) {
-        return strlen(root->data);
-    }
-    return get_length(root->left) + get_length(root->right);
-}
-
-bool is_tree_balanced(RopeTree *tree) {
-    if (tree->height >= smallest_fib_GE(tree->nodes_count)) {
-        return false;
-    }
-    return fibonacci(tree->height + 2) <= tree->root->rank ? true : false;
-}
-
-RopeTree *rebalance(List *leaves) {
-    RopeTree *rebalanced_tree = create_tree();
-    if (!leaves || !leaves->leaf)
-        return rebalanced_tree;
-
-    Node *current_root = leaves->leaf;
-    current_root->parent = nullptr;
-    leaves = leaves->next;
-
-    while (leaves) {
-        if (!leaves->leaf) {
-            leaves = leaves->next;
-            continue;
-        }
-        leaves->leaf->parent = nullptr;
-        current_root = concat(current_root, leaves->leaf);
-        leaves = leaves->next;
-    }
-
-    rebalanced_tree->root = current_root;
-    return rebalanced_tree;
-}
-
-Node *copy_tree(Node *root) {
-    if (!root)
-        return nullptr;
-
-    Node *new_node = create_node(root->data);
-    new_node->rank = root->rank;
-    new_node->parent = root->parent;
-    new_node->left = copy_tree(root->left);
-    new_node->right = copy_tree(root->right);
-
-    return new_node;
-}
-
-void split(RopeTree *tree, uint32_t idx, RopeTree **split_tree_1,
-           RopeTree **split_tree_2) {
-    Node *current = get_index_node(tree, &idx);
-    if (!current) {
-        return;
-    }
-    printf("Splitting on node %p\n", current);
-    uint32_t weight_to_substract = current->rank;
-
-    *split_tree_1 = create_tree();
-    *split_tree_2 = create_tree();
-
-    while (current) {
-
-        if (current->right) {
-            Node *node_to_concat = current->right;
-
-            if (!(*split_tree_2)->root) {
-                current->right->parent = nullptr;
-                current->right = nullptr;
-                (*split_tree_2)->root = node_to_concat;
-                current = current->parent;
-                continue;
-            }
-
-            if (current->parent && current == current->parent->right) {
-                current = current->parent->parent;
-                continue;
-            }
-
-            if (current->parent)
-                current->parent->rank -= weight_to_substract;
-            current->right->parent = nullptr;
-            current->right = nullptr;
-
-            (*split_tree_2)->root =
-                concat((*split_tree_2)->root, node_to_concat);
-        }
-        current = current->parent;
-
-        // skipping next node
-        // if (current->parent && current == current->parent->right) {
-        //     current = current->parent;
-        // }
-        // current = current->parent;
-        // if (current) {
-        //     current->rank -= weight_to_substract;
-        //     if (current->rank <= 0) {
-        //         if (current->parent)
-        //             current->parent->left = current->left;
-        //         current->left->parent = current->parent;
-        //     }
-        // }
-    }
-    (*split_tree_1)->root = copy_tree(tree->root);
-}
-
-void split_rec(Node *node, uint32_t idx, Node **left, Node **right) {
-    if (!node) {
-        *left = *right = nullptr;
-        return;
-    }
-
-    if (!node->left && !node->right) {
-        if (idx >= node->rank) {
-            *left = node;
-            *right = nullptr;
-        } else {
-            char *left_str = strndup(node->data, idx);
-            char *right_str = strdup(node->data + idx);
-            *left = strlen(left_str) > 0 ? create_node(left_str) : nullptr;
-            *right = strlen(right_str) > 0 ? create_node(right_str) : nullptr;
-            free(left_str);
-            free(right_str);
-        }
-        return;
-    }
-
-    if (idx < node->rank) {
-        Node *left_left, *left_right;
-        split_rec(node->left, idx, &left_left, &left_right);
-        Node *new_right = concat(left_right, node->right);
-        *left = left_left;
-        *right = new_right;
-    } else {
-        Node *right_left, *right_right;
-        split_rec(node->right, idx - node->rank, &right_left, &right_right);
-        Node *new_left = concat(node->left, right_left);
-        *left = new_left;
-        *right = right_right;
-    }
-}
-
-Node *concat(Node *tree_1, Node *tree_2) {
-    Node *new_root = create_node("");
-    new_root->left = tree_1;
-    new_root->right = tree_2;
-    if (tree_1)
-        tree_1->parent = new_root;
-    if (tree_2)
-        tree_2->parent = new_root;
-    new_root->rank = calculate_rank(new_root);
-
-    return new_root;
-}
-
-RopeTree *prepend(RopeTree *tree, char *data) {
+RopeTree *append(RopeTree *tree, char *data) {
     tree->nodes_count++;
     tree->length += strlen(data);
     if (!tree->root) {
-        Node *new_node = create_node(data);
+        Node *new_node = create_leaf(data);
         tree->root = new_node;
         return tree;
     }
@@ -233,7 +63,37 @@ RopeTree *prepend(RopeTree *tree, char *data) {
     }
 #endif
 
-    Node *new_node = create_node(data);
+    Node *new_node = create_leaf(data);
+    tree->root = concat(tree->root, new_node);
+    tree->nodes_count++;
+    tree->height++;
+    return tree;
+}
+
+RopeTree *prepend(RopeTree *tree, char *data) {
+    tree->nodes_count++;
+    tree->length += strlen(data);
+    if (!tree->root) {
+        Node *new_node = create_leaf(data);
+        tree->root = new_node;
+        return tree;
+    }
+
+#ifdef APPEND_TO_STRING
+    Node *last = get_last_node(tree);
+    if (strlen(data) + strlen(last->data) < sizeof(last->data)) {
+        strcat(last->data, data);
+        last->rank = strlen(last->data);
+        Node *parent = last->parent;
+        while (parent) {
+            parent->rank = calculate_rank(parent);
+            parent = parent->parent;
+        }
+        return;
+    }
+#endif
+
+    Node *new_node = create_leaf(data);
     tree->root = concat(new_node, tree->root);
     tree->nodes_count++;
     tree->height++;
@@ -265,11 +125,11 @@ RopeTree *insert(RopeTree *tree, uint32_t idx, char *data) {
     }
 #endif
     int32_t length = tree->length + strlen(data);
-    Node *new_node = create_node(data);
+    Node *new_node = create_leaf(data);
     tree->length += strlen(data);
     Node *left_tree, *right_tree;
 
-    split_rec(tree->root, idx, &left_tree, &right_tree);
+    split(tree->root, idx, &left_tree, &right_tree);
 
     left_tree = concat(left_tree, new_node);
 
@@ -284,7 +144,7 @@ RopeTree *insert(RopeTree *tree, uint32_t idx, char *data) {
     }
 
     List *leaves = get_leaves(tree);
-    free_not_leaves_nodes(tree->root);
+    free_internal_nodes(tree->root);
     RopeTree *balanced = rebalance(leaves);
     free_list(leaves);
     leaves = nullptr;
@@ -298,42 +158,8 @@ RopeTree *insert(RopeTree *tree, uint32_t idx, char *data) {
     return balanced;
 }
 
-RopeTree *append(RopeTree *tree, char *data) {
-    tree->nodes_count++;
-    tree->length += strlen(data);
-    if (!tree->root) {
-        Node *new_node = create_node(data);
-        tree->root = new_node;
-        return tree;
-    }
-
-#ifdef APPEND_TO_STRING
-    Node *last = get_last_node(tree);
-    if (strlen(data) + strlen(last->data) < sizeof(last->data)) {
-        strcat(last->data, data);
-        last->rank = strlen(last->data);
-        Node *parent = last->parent;
-        while (parent) {
-            parent->rank = calculate_rank(parent);
-            parent = parent->parent;
-        }
-        return;
-    }
-#endif
-
-    Node *new_node = create_node(data);
-    tree->root = concat(tree->root, new_node);
-    tree->nodes_count++;
-    tree->height++;
-    return tree;
-}
-
 RopeTree *rope_delete(RopeTree *tree, uint32_t start, uint32_t length) {
     uint32_t size = tree->length;
-    // RopeTree *split_tree_1 = nullptr;
-    // RopeTree *split_tree_2 = nullptr;
-    // RopeTree *split_tree_3 = nullptr;
-    // RopeTree *split_tree_4 = nullptr;
 
     if (tree->root->left == nullptr && tree->root->right == nullptr) {
         free(tree->root);
@@ -343,51 +169,16 @@ RopeTree *rope_delete(RopeTree *tree, uint32_t start, uint32_t length) {
 
     Node *first_split_left;
     Node *first_split_right;
-    split_rec(tree->root, start, &first_split_left, &first_split_right);
+    split(tree->root, start, &first_split_left, &first_split_right);
     print_RT("", first_split_left, false);
     print_RT("", first_split_right, false);
 
     Node *second_split__left;
     Node *second_split_right;
-    split_rec(tree->root, start + length, &second_split__left,
-              &second_split_right);
+    split(tree->root, start + length, &second_split__left, &second_split_right);
 
     tree->root = concat(first_split_left, second_split_right);
 
-    // RopeTree *tree_copy = create_tree();
-    // tree_copy->root = copy_tree(tree->root);
-
-    // print_RT("", tree->root, false);
-    // split(tree, start, &split_tree_1, &split_tree_2);
-    //
-    // print_RT("", tree_copy->root, false);
-    // split(tree_copy, start + length, &split_tree_3, &split_tree_4);
-    //
-    // post_order_delete(tree->root);
-    // free(tree);
-    // tree = nullptr;
-    // // if (split_tree_2->root) {
-    // //     post_order_delete(split_tree_2->root);
-    // //     free(split_tree_2);
-    // //     split_tree_2 = nullptr;
-    // // }
-    // //
-    // // if (split_tree_3->root) {
-    //     post_order_delete(split_tree_3->root);
-    //     // Gives Exception Why?
-    //     // free(split_tree_3);
-    //     split_tree_3 = nullptr;
-    // }
-
-    // tree = create_tree();
-    // if (split_tree_1 && split_tree_4) {
-    //     tree->root = concat(split_tree_1->root, split_tree_4->root);
-    // } else if (split_tree_1) {
-    //     tree->root = split_tree_1->root;
-    // } else if (split_tree_4) {
-    //     tree->root = split_tree_4->root;
-    // }
-    //
     if (tree->root == nullptr) {
         return nullptr;
     }
@@ -401,7 +192,7 @@ RopeTree *rope_delete(RopeTree *tree, uint32_t start, uint32_t length) {
     }
 
     List *leaves = get_leaves(tree);
-    free_not_leaves_nodes(tree->root);
+    free_internal_nodes(tree->root);
     RopeTree *balanced = rebalance(leaves);
     free_list(leaves);
     leaves = nullptr;
@@ -415,80 +206,9 @@ RopeTree *rope_delete(RopeTree *tree, uint32_t start, uint32_t length) {
     return balanced;
 }
 
-void free_not_leaves_nodes(Node *root) {
-    if (root || (root->left != nullptr && root->right != nullptr)) {
-        return;
-    }
-    Node *tmp = root;
-    free_not_leaves_nodes(root->left);
-    free_not_leaves_nodes(root->right);
-    free(tmp);
-}
-
-uint32_t calculate_rank(Node *node) {
-    Node *current = node->left;
-    uint32_t rank = 0;
-    while (current) {
-        rank += current->rank;
-        current = current->right;
-    }
-    return rank;
-}
-
-void in_order_printf(RopeTree *tree) {
-    if (!tree)
-        return;
-
-    Node **stack = malloc(tree->length * sizeof(*stack));
-    Node *current = tree->root;
-    size_t counter = 0;
-    size_t stack_index = 0;
-
-    while (current || stack_index) {
-        while (current) {
-            stack[stack_index++] = current;
-            current = current->left;
-        }
-        if (stack_index) {
-            current = stack[--stack_index];
-
-            printf("Node rank: %d, strlen(data\\): %ld,  data: %s\n",
-                   current->rank, strlen(current->data), current->data);
-            current = current->right;
-        }
-    }
-    free(stack);
-}
-
-char *in_order(RopeTree *tree) {
-    if (!tree)
-        return nullptr;
-
-    char *text = calloc(tree->length * 2 * CHUNK_BASE, sizeof(char));
-    Node **stack = malloc(tree->length * sizeof(*stack));
-    Node *current = tree->root;
-    size_t counter = 0;
-    size_t stack_index = 0;
-
-    while (current || stack_index) {
-        while (current) {
-            stack[stack_index++] = current;
-            current = current->left;
-        }
-        if (stack_index) {
-            current = stack[--stack_index];
-            if (current->left == nullptr && current->right == nullptr) {
-                for (int i = 0; i < 2 * CHUNK_BASE; i++) {
-                    if (current->data[i] == '\0')
-                        break;
-                    text[counter++] = current->data[i];
-                }
-            }
-            current = current->right;
-        }
-    }
-    free(stack);
-    return text;
+Node *concat(Node *tree_1, Node *tree_2) {
+    Node *new_root = create_internal(tree_1, tree_2);
+    return new_root;
 }
 
 Node *get_last_node(RopeTree *tree) {
@@ -576,6 +296,147 @@ List *get_leaves(RopeTree *tree) {
     return leaves_start;
 }
 
+uint32_t calculate_length(Node *root) {
+    if (!root)
+        return 0;
+    if (!root->left && !root->right) {
+        return strlen(root->data);
+    }
+    return calculate_length(root->left) + calculate_length(root->right);
+}
+
+uint32_t calculate_rank(Node *node) {
+    Node *current = node->left;
+    uint32_t rank = 0;
+    while (current) {
+        rank += current->rank;
+        current = current->right;
+    }
+    return rank;
+}
+
+int count_nodes(Node *root) {
+    if (!root)
+        return 0;
+    return 1 + count_nodes(root->left) + count_nodes(root->right);
+}
+
+int calc_tree_height(Node *root) {
+    if (root == nullptr)
+        return 0;
+    int leftHeight = calc_tree_height(root->left);
+    int rightHeight = calc_tree_height(root->right);
+    return 1 + (leftHeight > rightHeight ? leftHeight : rightHeight);
+}
+
+bool is_tree_balanced(RopeTree *tree) {
+    if (tree->height >= smallest_fib_GE(tree->nodes_count)) {
+        return false;
+    }
+    return fibonacci(tree->height + 2) <= tree->root->rank ? true : false;
+}
+
+RopeTree *rebalance(List *leaves) {
+    RopeTree *rebalanced_tree = create_tree();
+    if (!leaves || !leaves->leaf)
+        return rebalanced_tree;
+
+    Node *current_root = leaves->leaf;
+    leaves = leaves->next;
+
+    while (leaves) {
+        if (!leaves->leaf) {
+            leaves = leaves->next;
+            continue;
+        }
+        current_root = concat(current_root, leaves->leaf);
+        leaves = leaves->next;
+    }
+
+    rebalanced_tree->root = current_root;
+    return rebalanced_tree;
+}
+
+void split(Node *node, uint32_t idx, Node **left, Node **right) {
+    if (!node) {
+        *left = *right = nullptr;
+        return;
+    }
+
+    if (!node->left && !node->right) {
+        if (idx >= node->rank) {
+            *left = node;
+            *right = nullptr;
+        } else {
+            char *left_str = strndup(node->data, idx);
+            char *right_str = strdup(node->data + idx);
+            *left = strlen(left_str) > 0 ? create_leaf(left_str) : nullptr;
+            *right = strlen(right_str) > 0 ? create_leaf(right_str) : nullptr;
+            free(left_str);
+            free(right_str);
+        }
+        return;
+    }
+
+    if (idx < node->rank) {
+        Node *left_left, *left_right;
+        split(node->left, idx, &left_left, &left_right);
+        Node *new_right = concat(left_right, node->right);
+        *left = left_left;
+        *right = new_right;
+    } else {
+        Node *right_left, *right_right;
+        split(node->right, idx - node->rank, &right_left, &right_right);
+        Node *new_left = concat(node->left, right_left);
+        *left = new_left;
+        *right = right_right;
+    }
+}
+
+Node *copy_tree(Node *root) {
+    if (!root)
+        return nullptr;
+    Node *new_node = malloc(sizeof(Node));
+    if (!new_node) {
+        perror("Failed to allocate mememory for tree copy");
+        return nullptr;
+    }
+
+    // is leaf
+    if (!root->left && !root->right) {
+        new_node->data = root->data ? strdup(root->data) : nullptr;
+        new_node->left = nullptr;
+        new_node->right = nullptr;
+    } else { // is internal
+        new_node->data = nullptr;
+        new_node->left = copy_tree(root->left);
+        new_node->right = copy_tree(root->right);
+    }
+
+    return new_node;
+}
+
+void free_tree(Node *root) {
+    if (root) {
+        return;
+    }
+    Node *tmp = root;
+    free_tree(root->left);
+    free_tree(root->right);
+    free(tmp);
+}
+
+void free_internal_nodes(Node *root) {
+    if (root) {
+        return;
+    }
+    Node *tmp = root;
+    free_tree(root->left);
+    free_tree(root->right);
+    if (tmp->left && tmp->right)
+        free(tmp);
+}
+
 void free_list(List *list) {
     while (list) {
         List *tmp = list;
@@ -602,67 +463,24 @@ void print_RT(char *prefix, const Node *node, bool is_left) {
     }
 }
 
-int count_nodes(Node *root) {
-    if (!root)
-        return 0;
-    return 1 + count_nodes(root->left) + count_nodes(root->right);
-}
-
-int calc_tree_height(Node *root) {
-    if (root == nullptr)
-        return 0;
-    int leftHeight = calc_tree_height(root->left);
-    int rightHeight = calc_tree_height(root->right);
-    return 1 + (leftHeight > rightHeight ? leftHeight : rightHeight);
-}
-
-void post_order_delete(Node *root) {
-    if (root) {
-        return;
+// Function to generate Fibonacci numbers up to a limit
+int fibonacci(int n) {
+    if (n <= 1)
+        return n;
+    int a = 0, b = 1, c;
+    for (int i = 2; i <= n; i++) {
+        c = a + b;
+        a = b;
+        b = c;
     }
-    Node *tmp = root;
-    post_order_delete(root->left);
-    post_order_delete(root->right);
-    free(tmp);
-    // unsigned n = tree->nodes_count; // unsigned n = tree->length;
-    // Node **stack =
-    //     malloc(n * sizeof(*stack)); // stack contains pointers to nodes
-    // unsigned size = 0;              // current stack size
-    // char *boolStack = malloc(
-    //     n * sizeof(*boolStack)); // For each element on the node stack, a
-    //                              // corresponding value is stored on the bool
-    //                              // stack. If this value is true, then we
-    //                              need
-    //                              // to pop and visit the node on next
-    //                              encounter.
-    // unsigned boolSize = 0;
-    // char alreadyEncountered; // boolean
-    // Node *current = tree->root;
-    // while (current) {
-    //     stack[size++] = current;
-    //     boolStack[boolSize++] = 0; // false
-    //     current = current->left;
-    // }
-    // while (size) {
-    //     current = stack[size - 1];
-    //     alreadyEncountered = boolStack[boolSize - 1];
-    //     if (alreadyEncountered) {
-    //         free(current); // visit()
-    //         size--;
-    //         boolSize--;
-    //     } else {
-    //         boolSize--;
-    //         boolStack[boolSize++] = 1; // true
-    //         current = current->right;
-    //         while (current) {
-    //             stack[size++] = current;
-    //             boolStack[boolSize++] = 0; // false
-    //             current = current->left;
-    //         }
-    //     }
-    // }
-    // tree->root = nullptr;
-    // tree->length = 0;
-    // free(stack);
-    // free(boolStack);
+    return b;
+}
+
+// Function to find the smallest Fibonacci number >= n
+int smallest_fib_GE(int n) {
+    int i = 0;
+    while (fibonacci(i) < n) {
+        i++;
+    }
+    return fibonacci(i);
 }
