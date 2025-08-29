@@ -14,8 +14,9 @@
 
 ### TO-DO
 
-- Add saving and loading files
-- Add undo & redo commands (Added memento implementation) need to add logic for allocating stack of momentos for undo and redo
+- Add message for user input when saving and loading file
+- add logic for allocating stack of momentos for undo and redo - memento module implemented
 - Add word wrapping
 - Seperate render function in editor.c
 - Code cleanup
+- maybe add simple GUI (maybe raigui or imgui) 
