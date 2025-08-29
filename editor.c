@@ -544,7 +544,7 @@ int main() {
                     size_t read = fread(chunks[i], 1, CHUNK_BASE, fp);
                     chunks[i][read] = '\0';
                 }
-
+                // Get lines data
                 fclose(fp);
                 rope_tree = build_rope(chunks, 0, chunk_num - 1);
                 for (size_t i = 0; i < chunk_num; ++i) {
@@ -552,7 +552,6 @@ int main() {
                 }
                 free(chunks);
 
-                // We need to reload line list
                 fp = fopen(f_path, "r");
 
                 char c;

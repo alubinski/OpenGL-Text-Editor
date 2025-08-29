@@ -70,19 +70,12 @@ RopeTree *append(RopeTree *tree, char *data) {
         return tree;
     }
 
-#ifdef APPEND_TO_STRING
     Node *last = get_last_node(tree);
-    if (strlen(data) + strlen(last->data) < sizeof(last->data)) {
+    if (strlen(data) + strlen(last->data) < CHUNK_BASE) {
         strcat(last->data, data);
         last->rank = strlen(last->data);
-        Node *parent = last->parent;
-        while (parent) {
-            parent->rank = calculate_rank(parent);
-            parent = parent->parent;
-        }
-        return;
+        return tree;
     }
-#endif
 
     Node *new_node = create_leaf(data);
     tree->root = concat(tree->root, new_node);
@@ -100,19 +93,12 @@ RopeTree *prepend(RopeTree *tree, char *data) {
         return tree;
     }
 
-#ifdef APPEND_TO_STRING
-    Node *last = get_last_node(tree);
-    if (strlen(data) + strlen(last->data) < sizeof(last->data)) {
-        strcat(last->data, data);
-        last->rank = strlen(last->data);
-        Node *parent = last->parent;
-        while (parent) {
-            parent->rank = calculate_rank(parent);
-            parent = parent->parent;
-        }
-        return;
+    Node *first = get_first_node(tree);
+    if (strlen(data) + strlen(first->data) < CHUNK_BASE) {
+        strcat(first->data, data);
+        first->rank = strlen(first->data);
+        return tree;
     }
-#endif
 
     Node *new_node = create_leaf(data);
     tree->root = concat(new_node, tree->root);
@@ -130,21 +116,6 @@ RopeTree *insert(RopeTree *tree, uint32_t idx, char *data) {
     if (idx == 0) {
         return prepend(tree, data);
     }
-#ifdef APPEND_TO_STRING
-    Node *index_node = get_index_node(tree, &idx);
-    if (strlen(data) + strlen(index_node->data) < sizeof(index_node->data)) {
-        char *new_string = calloc(2 * CHUNK_BASE, sizeof(char));
-        strncpy(new_string, index_node->data, idx);
-        strncpy(new_string + strlen(new_string), data, strlen(data));
-        strncpy(new_string + strlen(new_string), index_node->data + idx,
-                strlen(index_node->data) - idx);
-
-        strcpy(index_node->data, new_string);
-        free(new_string);
-        index_node->rank = strlen(index_node->data);
-        return;
-    }
-#endif
     int32_t length = tree->length + strlen(data);
     Node *new_node = create_leaf(data);
     tree->length += strlen(data);
@@ -236,6 +207,14 @@ Node *get_last_node(RopeTree *tree) {
     Node *current = tree->root;
     while (current->right) {
         current = current->right;
+    }
+    return current;
+}
+
+Node *get_first_node(RopeTree *tree) {
+    Node *current = tree->root;
+    while (current->left) {
+        current = current->left;
     }
     return current;
 }

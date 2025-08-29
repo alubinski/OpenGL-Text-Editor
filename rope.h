@@ -67,6 +67,8 @@ Node *concat(Node *tree_1, Node *tree_2);
 [[nodiscard]]
 Node *get_last_node(RopeTree *tree);
 [[nodiscard]]
+Node *get_first_node(RopeTree *tree);
+[[nodiscard]]
 Node *get_index_node(RopeTree *tree, uint32_t *idx);
 [[nodiscard]]
 List *get_leaves(RopeTree *tree);
