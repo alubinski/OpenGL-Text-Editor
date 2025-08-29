@@ -2,7 +2,9 @@
 #define ROPE_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 // Utility Macros
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -44,6 +46,11 @@ Node *create_leaf(const char *data);
 Node *create_internal(Node *left, Node *right);
 
 // Tree Construction & Modification
+[[nodiscard]]
+RopeTree *build_rope(char **chunks, size_t start, size_t end);
+[[nodiscard]]
+Node *_build_rope(char **chunks, size_t start, size_t end);
+[[nodiscard]]
 RopeTree *create_tree();
 [[nodiscard]]
 RopeTree *append(RopeTree *tree, char *data);
@@ -84,6 +91,9 @@ void free_list(List *list);
 // Math Utilities
 int fibonacci(int n);
 int smallest_fib_GE(int n);
+
+// File operations
+void save_to_file(Node *root, FILE *fp);
 
 // Debugging & Visualization
 void print_RT(char *prefix, const Node *node, bool is_left);

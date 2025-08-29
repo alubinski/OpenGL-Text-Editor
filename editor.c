@@ -9,6 +9,7 @@
 #include <cglm/types-struct.h>
 #include <limits.h>
 #include <runara/runara.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -214,7 +215,7 @@ void render(uint32_t render_w, uint32_t render_h) {
             x = 20;
             continue;
         }
-        x += _font->space_w;
+        x += strlen(l->leaf->data) * _font->space_w;
     }
 
     rn_end(_state.render_state);
@@ -224,6 +225,42 @@ void render(uint32_t render_w, uint32_t render_h) {
     free_list(leaves_start);
     leaves = nullptr;
     leaves_start = nullptr;
+}
+
+void render_bottom_bar(uint32_t render_w, uint32_t render_h, Window win,
+                       char *buffer) {
+    glClear(GL_COLOR_BUFFER_BIT);
+    vec4s clear_color = rn_color_to_zto(rn_color_from_hex(0x282828));
+    glClearColor(clear_color.r, clear_color.g, clear_color.b, clear_color.a);
+
+    rn_resize_display(_state.render_state, render_w, render_h);
+
+    rn_begin(_state.render_state);
+    //
+    // vec2s cursor_pos = get_cursor_pos();
+    //
+    // float x_offset = 0;
+    // if (cursor_pos.x >= render_w) {
+    //     x_offset = cursor_pos.x - render_w + _font->size;
+    // }
+    //
+    // float y_offset = 0;
+    // if (cursor_pos.y >= render_h) {
+    //     y_offset = cursor_pos.y - render_h + _font->size;
+    // }
+
+    float x = 20;
+    float y = render_h - 40;
+
+    rn_text_render(_state.render_state, buffer, _font, (vec2s){x, y}, RN_WHITE);
+
+    // render_text(_state.render_state, buffer, _font, (vec2s){x, y}, RN_WHITE,
+    // -1,
+    //             True);
+
+    rn_end(_state.render_state);
+
+    glXSwapBuffers(_state.dsp, _state.win);
 }
 
 Line *add_new_line(Line *prev) {
@@ -237,6 +274,57 @@ Line *add_new_line(Line *prev) {
     }
     line_num++;
     return new_line;
+}
+
+char *open_bottom_bar(int window_width, int window_height) {
+    // Window new_window = XCreateSimpleWindow(
+    //     _state.dsp, _state.win, 0, window_height - 20, window_width, 20, 1,
+    //     BlackPixel(_state.dsp, 0), BlackPixel(_state.dsp, 0));
+    // XMapWindow(_state.dsp, new_window);
+    bool is_bottom_bar_open = true;
+    XSelectInput(_state.dsp, _state.win, ExposureMask | KeyPressMask);
+    // XSelectInput(_state.dsp, new_window, ExposureMask | KeyPressMask);
+
+    char utf8_str[32];
+    int idx = 0;
+    char *buff = calloc(sizeof(char), 256);
+    while (is_bottom_bar_open) {
+
+        XEvent general_event;
+        XNextEvent(_state.dsp, &general_event);
+
+        switch (general_event.type) {
+            // case KeyRelease:
+        case KeyPress: {
+
+            XKeyPressedEvent *event = (XKeyPressedEvent *)&general_event;
+            if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Return)) {
+                is_bottom_bar_open = false;
+                break;
+            }
+            KeySym key_sym;
+            XComposeStatus status;
+            char c;
+            int written =
+                XLookupString(event, &c, sizeof(c), &key_sym, &status);
+            if (written) {
+                buff[idx] = c;
+                buff[idx + 1] = '\0';
+                idx++;
+            }
+
+            render_bottom_bar(window_width, window_height, _state.win, buff);
+            //  render(window_width, window_height);
+        } break;
+        case Expose: {
+
+            render_bottom_bar(window_width, window_height, _state.win, buff);
+            // render(window_width, window_height);
+
+        } break;
+        }
+    }
+    return buff;
 }
 
 int main() {
@@ -422,17 +510,85 @@ int main() {
             struct Cursor prev_cursor;
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_S) &&
                 event->state & ControlMask) {
-                m = create_memento(rope_tree);
-                prev_cursor = cursor;
+
+                char *f_path = open_bottom_bar(window_width, window_height);
+                FILE *fp = fopen(f_path, "w");
+                if (!fp) {
+                    perror("Failed to open file");
+                    return EXIT_FAILURE;
+                }
+                save_to_file(rope_tree->root, fp);
+                fclose(fp);
+
                 break;
             }
-            if (event->keycode == XKeysymToKeycode(_state.dsp, XK_U) &&
+            if (event->keycode == XKeysymToKeycode(_state.dsp, XK_L) &&
                 event->state & ControlMask) {
-                rope_tree = restore_from_memento(m);
-                cursor = prev_cursor;
-                render(window_width, window_height);
+                char *f_path = open_bottom_bar(window_width, window_height);
+
+                FILE *fp = fopen(f_path, "r");
+
+                if (!fp) {
+                    perror("Failed to open file");
+                    return EXIT_FAILURE;
+                }
+                fseek(fp, 0, SEEK_END);
+                size_t file_size = ftell(fp);
+                rewind(fp);
+
+                size_t chunk_num = (file_size + CHUNK_BASE - 1) / CHUNK_BASE;
+                char **chunks = malloc(chunk_num * sizeof(char *));
+
+                for (size_t i = 0; i < chunk_num; ++i) {
+                    chunks[i] = malloc(chunk_num + 1);
+                    size_t read = fread(chunks[i], 1, CHUNK_BASE, fp);
+                    chunks[i][read] = '\0';
+                }
+
+                fclose(fp);
+                rope_tree = build_rope(chunks, 0, chunk_num - 1);
+                for (size_t i = 0; i < chunk_num; ++i) {
+                    free(chunks[i]);
+                }
+                free(chunks);
+
+                // We need to reload line list
+                fp = fopen(f_path, "r");
+
+                char c;
+                while (cursor.line) {
+                    Line *tmp = cursor.line;
+                    cursor.line = cursor.line->next;
+                    free(tmp);
+                }
+                line_num = 0;
+                size_t current_line_char_count = 0;
+                size_t char_count = 0;
+                while ((c = fgetc(fp)) != EOF) {
+                    char_count++;
+                    if (c == '\n') {
+                        cursor.line = add_new_line(cursor.line);
+                        cursor.line->length = current_line_char_count;
+                        line_num++;
+                    } else {
+                        current_line_char_count++;
+                    }
+                }
+
+                cursor.line = add_new_line(cursor.line);
+                cursor.line->length = current_line_char_count;
+                fclose(fp);
+                cursor.x = cursor.line->length;
                 break;
             }
+
+            // if (event->keycode == XKeysymToKeycode(_state.dsp, XK_U) &&
+            //     event->state & ControlMask) {
+            //     rope_tree = restore_from_memento(m);
+            //     cursor = prev_cursor;
+            //     render(window_width, window_height);
+            //     break;
+            // }
 
             KeySym key_sym;
             char utf8_str[32];
@@ -443,7 +599,6 @@ int main() {
             utf8_str[len_utf8_str] = '\0';
 
             if (len_utf8_str != 0) {
-
                 rope_tree = insert(rope_tree, cursor.char_idx, utf8_str);
                 cursor.char_idx++;
                 cursor.x++;

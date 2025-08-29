@@ -1,4 +1,5 @@
 #include "rope.h"
+#include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -31,6 +32,26 @@ Node *create_internal(Node *left, Node *right) {
     node->rank = calculate_rank(node);
     return node;
 }
+
+RopeTree *build_rope(char **chunks, size_t start, size_t end) {
+    RopeTree *tree = malloc(sizeof(RopeTree));
+    tree->root = _build_rope(chunks, start, end);
+    tree->height = calc_tree_height(tree->root);
+    tree->length = calculate_length(tree->root);
+    tree->nodes_count = count_nodes(tree->root);
+    return tree;
+}
+
+Node *_build_rope(char **chunks, size_t start, size_t end) {
+    if (start == end) {
+        return create_leaf(chunks[start]);
+    }
+    size_t mid = (start + end) / 2;
+    Node *left = _build_rope(chunks, start, mid);
+    Node *right = _build_rope(chunks, mid + 1, end);
+    return create_internal(left, right);
+}
+
 RopeTree *create_tree() {
     RopeTree *tree = malloc(sizeof(RopeTree));
     tree->root = nullptr;
@@ -246,13 +267,6 @@ List *get_leaves(RopeTree *tree) {
     if (!tree || !tree->root)
         return nullptr;
 
-    // if (tree->length == 1) {
-    //     List *new_leaf = malloc(sizeof(List));
-    //     new_leaf->leaf = tree->root;
-    //     new_leaf->next = nullptr;
-    //     return new_leaf;
-    // }
-
     List *leaves = nullptr;
     List *leaves_start = nullptr;
     int32_t stack_capacity = tree->nodes_count;
@@ -460,6 +474,18 @@ void print_RT(char *prefix, const Node *node, bool is_left) {
         print_RT(new_prefix, node->right, false);
 
         free(new_prefix);
+    }
+}
+
+void save_to_file(Node *root, FILE *fp) {
+    if (!root || !fp) {
+        return;
+    }
+    if (!root->left && !root->right) {
+        fputs(root->data, fp);
+    } else {
+        save_to_file(root->left, fp);
+        save_to_file(root->right, fp);
     }
 }
 
