@@ -116,7 +116,7 @@ vec2s render_text(RnState *state, const char *text, RnFont *font, vec2s pos,
             codepoint == line_seperator || codepoint == paragraph_seperator) {
             float font_height = font->face->size->metrics.height / 64.0f;
             pos.x = start_pos.x;
-            pos.y += font_height;
+            pos.y += _font->size * 1.5f;
             textheight += font_height;
             continue;
         }
@@ -153,7 +153,7 @@ vec2s render_text(RnState *state, const char *text, RnFont *font, vec2s pos,
         pos.y += y_advance;
     }
 
-    return (vec2s){.x = 0, .y = 0};
+    return (vec2s){.x = pos.x, .y = pos.y};
 }
 
 void render(uint32_t render_w, uint32_t render_h) {
@@ -197,6 +197,9 @@ void render(uint32_t render_w, uint32_t render_h) {
         y += _font->size * 1.5f;
     }
     y = 20;
+
+    const float new_line_start_x = x + cursor_pos.x - x_offset + max_width + 10;
+
     rn_rect_render(
         _state.render_state,
         (vec2s){x + cursor_pos.x - x_offset + max_width + 10, y + cursor_pos.y},
@@ -204,19 +207,61 @@ void render(uint32_t render_w, uint32_t render_h) {
     List *leaves = get_leaves(rope_tree);
     List *leaves_start = leaves;
 
+    vec2s rendering_start_point =
+        (vec2s){.x = x - x_offset + max_width + 10, .y = y - y_offset};
+
+    size_t total_text_length = 0;
+    // TODO: find better sollution this might be to slow for big files
     for (List *l = leaves; l != nullptr; l = l->next) {
-
-        render_text(_state.render_state, l->leaf->data, _font,
-                    (vec2s){x - x_offset + max_width + 10, y - y_offset},
-                    RN_WHITE, -1, True);
-
-        if (strncmp(l->leaf->data, "\n", 1) == 0) {
-            y += _font->size * 1.5f;
-            x = 20;
-            continue;
-        }
-        x += strlen(l->leaf->data) * _font->space_w;
+        total_text_length += strlen(l->leaf->data);
     }
+    char *text = malloc(total_text_length + 1);
+    if (!text) {
+        return;
+    }
+    text[0] = '\0';
+
+    for (List *l = leaves; l != nullptr; l = l->next) {
+        strcat(text, l->leaf->data);
+    }
+
+    render_text(_state.render_state, text, _font,
+                (vec2s){x - x_offset + max_width + 10, y - y_offset}, RN_WHITE,
+                -1, True);
+    // rn_text_render_ex(_state.render_state, text, _font,
+    //                   (vec2s){x - x_offset + max_width + 10, y - y_offset},
+    //                   RN_WHITE, _font->size * 1.5f, True);
+
+    // for (List *l = leaves; l != nullptr; l = l->next) {
+    //     text_props = rn_text_render(
+    //         _state.render_state, l->leaf->data, _font,
+    //         (vec2s){x - x_offset + max_width + 10, y - y_offset}, RN_WHITE);
+    //     int new_line_count = 0;
+    //     const char *last_nl = nullptr;
+    //     for (const char *p = l->leaf->data; p && *p != '\0'; ++p) {
+    //         if (*p == '\n') {
+    //             new_line_count++;
+    //             last_nl = p;
+    //         }
+    //     }
+    //
+    //     const char *after_last_nl = last_nl ? last_nl + 1 : l->leaf->data;
+    //
+    //     printf("string after last nl: %s\n", after_last_nl);
+    //     printf("Before adjust x=%f, y=%f\b", x, y);
+    //     y += new_line_count * _font->size * 1.5f;
+    //     if (new_line_count > 0) {
+    //         x = strlen(after_last_nl) * _font->space_w + 20;
+    //     } else {
+    //         x += strlen(after_last_nl) * _font->space_w;
+    //     }
+    //     printf("After adjust x=%f, y=%f\n", x, y);
+    //     // if (strncmp(l->leaf->data, "\n", 1) == 0) {
+    //     //     y += _font->size * 1.5f;
+    //     //     x = 20;
+    //     //     continue;
+    //     // }
+    // }
 
     rn_end(_state.render_state);
 
