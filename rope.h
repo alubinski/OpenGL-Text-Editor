@@ -10,7 +10,7 @@
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-#define CHUNK_BASE 16
+#define CHUNK_BASE 2
 
 // Forward Declarations
 typedef struct Node Node;

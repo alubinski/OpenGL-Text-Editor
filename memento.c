@@ -1,6 +1,8 @@
 #include "memento.h"
+#include <X11/X.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -97,21 +99,25 @@ RopeTree *deserialize(char *str) {
 }
 
 [[nodiscard]]
-Memento *create_memento(RopeTree *tree) {
+Memento *create_memento(RopeTree *tree, Line *head) {
     Memento *m = malloc(sizeof(Memento));
     Buffer buffer;
     buffer_init(&buffer);
     serialize(tree->root, &buffer);
     m->serialized_rope = buffer.data;
+    m->serialized_lines = malloc(128 * sizeof(uint8_t));
+    m->line_buffer_size = serialize_lines(head, m->serialized_lines,
+                                          128 * sizeof(m->serialized_lines));
     return m;
 }
 
 [[nodiscard]]
-RopeTree *restore_from_memento(Memento *m) {
+RopeTree *restore_from_memento(Memento *m, Line **head) {
     RopeTree *restored = deserialize(m->serialized_rope);
     restored->nodes_count = count_nodes(restored->root);
     restored->height = calc_tree_height(restored->root);
     restored->length = calculate_length(restored->root);
+    *head = deserialize_lines(m->serialized_lines, m->line_buffer_size);
     return restored;
 }
 
@@ -131,4 +137,90 @@ void save_memento(Caretaker *c, Memento *m) {
 
 Memento *get_memento(Caretaker *c, size_t idx) {
     return (idx >= 0 && idx < c->size) ? c->history[idx] : nullptr;
+}
+
+Memento *pop_memento(Caretaker *c) {
+    Memento *m = get_memento(c, c->size - 1);
+    c->size--;
+    return m;
+}
+void clear_caretaker(Caretaker *c) {
+    // free(c->history);
+    c->size = 0;
+}
+
+[[nodiscard]]
+size_t serialize_lines(const Line *head, uint8_t *buffer, size_t buff_size) {
+    size_t line_count = 0;
+    for (const Line *cur = head; cur; cur = cur->next)
+        line_count++;
+
+    size_t required =
+        sizeof(uint32_t) * line_count * (sizeof(int32_t) + sizeof(uint32_t));
+    if (buff_size < required) {
+        perror("Not enough space allocated to serialize lines");
+        return 0;
+    }
+
+    uint32_t cnt = (uint32_t)line_count;
+    memcpy(buffer, &cnt, sizeof(cnt));
+    size_t offset = sizeof(cnt);
+
+    for (const Line *cur = head; cur; cur = cur->next) {
+        memcpy(buffer + offset, &cur->idx, sizeof(cur->idx));
+        offset += sizeof(cur->idx);
+        memcpy(buffer + offset, &cur->length, sizeof(cur->length));
+        offset += sizeof(cur->length);
+    }
+    return offset;
+}
+
+[[nodiscard]]
+Line *deserialize_lines(const uint8_t *buffer, size_t buff_size) {
+    if (buff_size < sizeof(uint32_t)) {
+        perror("Buff size is incorrect. Can not deserialize lines");
+        return nullptr;
+    }
+
+    uint32_t count;
+    memcpy(&count, buffer, sizeof(count));
+    size_t offset = sizeof(count);
+
+    if (buff_size < offset + count * (sizeof(int32_t) + sizeof(uint32_t))) {
+        perror("Buff size is incorrect. Can not deserialize lines");
+        return nullptr;
+    }
+
+    Line *head = nullptr, *prev = nullptr;
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t idx;
+        uint32_t length;
+        memcpy(&idx, buffer + offset, sizeof(idx));
+        offset += sizeof(idx);
+        memcpy(&length, buffer + offset, sizeof(length));
+        offset += sizeof(length);
+
+        Line *line = malloc(sizeof(Line));
+        if (!line) {
+            while (head) {
+                Line *tmp = head;
+                head = head->next;
+                free(tmp);
+            }
+            perror("Memory allocation for line failed");
+            return nullptr;
+        }
+
+        line->idx = idx;
+        line->length = length;
+        line->next = nullptr;
+        line->prev = prev;
+
+        if (prev)
+            prev->next = line;
+        else
+            head = line;
+        prev = line;
+    }
+    return head;
 }

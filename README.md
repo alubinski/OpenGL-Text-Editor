@@ -15,7 +15,9 @@
 ### TO-DO
 
 - Add message for user input when saving and loading file
-- add logic for allocating stack of momentos for undo and redo - memento module implemented
+- Undo & Redo
+    - Fix cursor alligment after undo and redo, currently cursor go back to start of text
+    - memmory cleanup of previous state
 - Add word wrapping
 - Seperate render function in editor.c
 - Code cleanup

@@ -1,3 +1,4 @@
+#include "cursor.h"
 #include "memento.h"
 #include "rope.h"
 #include <GL/gl.h>
@@ -23,24 +24,10 @@ struct State {
     RnState *render_state;
 };
 
-typedef struct Line Line;
-
-struct Cursor {
-    int32_t x;
-    int32_t x_swap;
-    Line *line;
-    int32_t char_idx;
-};
-
-struct Line {
-    uint32_t length;
-    int32_t idx;
-    Line *next;
-    Line *prev;
-};
-
 struct Cursor cursor =
     (struct Cursor){.x = 0, .line = nullptr, .char_idx = 0, .x_swap = INT_MIN};
+
+Line *head;
 
 XIM xim;
 XIC xic;
@@ -426,9 +413,12 @@ int main() {
         rn_load_font(_state.render_state, "./Iosevka-Regular.ttf", font_size);
 
     rope_tree = create_tree();
+    size_t carataker_capacity = 100;
+    Caretaker *undo_carataker = create_caretaker(carataker_capacity);
+    Caretaker *redo_caretaker = create_caretaker(carataker_capacity);
 
-    Memento *m;
     cursor.line = add_new_line(nullptr);
+    head = cursor.line;
 
     render(window_width, window_height);
     int is_window_open = 1;
@@ -626,6 +616,28 @@ int main() {
                 break;
             }
 
+            if (event->keycode == XKeysymToKeycode(_state.dsp, XK_U) &&
+                event->state & ControlMask) {
+                Memento *m = pop_memento(undo_carataker);
+                save_memento(redo_caretaker, m);
+                rope_tree = restore_from_memento(m, &head);
+                // cursor = m->cursor_state;
+                cursor.line = head;
+                cursor.x = 0;
+                render(window_width, window_height);
+                break;
+            }
+            if (event->keycode == XKeysymToKeycode(_state.dsp, XK_R) &&
+                event->state & ControlMask) {
+                Memento *m = pop_memento(redo_caretaker);
+                save_memento(undo_carataker, m);
+                rope_tree = restore_from_memento(m, &head);
+                // cursor = m->cursor_state;
+                cursor.line = head;
+                cursor.x = 0;
+                render(window_width, window_height);
+                break;
+            }
             // if (event->keycode == XKeysymToKeycode(_state.dsp, XK_U) &&
             //     event->state & ControlMask) {
             //     rope_tree = restore_from_memento(m);
@@ -643,6 +655,9 @@ int main() {
             utf8_str[len_utf8_str] = '\0';
 
             if (len_utf8_str != 0) {
+                Memento *m = create_memento(rope_tree, head);
+                save_memento(undo_carataker, m);
+                clear_caretaker(redo_caretaker);
                 rope_tree = insert(rope_tree, cursor.char_idx, utf8_str);
                 cursor.char_idx++;
                 cursor.x++;
