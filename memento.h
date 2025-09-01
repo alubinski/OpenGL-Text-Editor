@@ -9,8 +9,6 @@
 
 typedef struct Memento {
     char *serialized_rope;
-    uint8_t *serialized_lines;
-    size_t line_buffer_size;
 } Memento;
 
 typedef struct Caretaker {
@@ -26,10 +24,6 @@ typedef struct Buffer {
 } Buffer;
 
 void serialize(Node *root, Buffer *buffer);
-
-size_t serialize_lines(const Line *head, uint8_t *buffer, size_t buff_size);
-
-Line *deserialize_lines(const uint8_t *buffer, size_t buff_size);
 
 Node *deserialize_heler(char **str);
 

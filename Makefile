@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -g -Wall -Wextra -pedantic -Winvalid-pch -std=c23 
 #-fsanitize=address 
 LDFLAGS = -lX11 -lGL -lrunara -lfreetype -lharfbuzz -lm
-SRCS = editor.c rope.c memento.c
+SRCS = editor.c rope.c memento.c cursor.c
 OBJS = $(SRCS:.c=.o)
 TARGET = editor.out
 

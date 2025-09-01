@@ -14,10 +14,6 @@
 
 ### TO-DO
 
-- Redo cursor implementation
-    - currently cursor contains info about location in line and pointer to current line
-    - better implementation would be to have LineIndex that contains offset of line in buffer, 
-        the size of line, and number of lines, than cursor would only contain indexes
 - Add message for user input when saving and loading file
 - Undo & Redo
     - Fix cursor alligment after undo and redo, currently cursor go back to start of text
