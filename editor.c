@@ -25,7 +25,7 @@ struct State {
 };
 
 struct Cursor cursor =
-    (struct Cursor){.x = 0, .line = nullptr, .char_idx = 0, .x_swap = INT_MIN};
+    (struct Cursor){.line = 0, .column = 0, .desired_column = 0};
 
 Line *head;
 
@@ -43,8 +43,8 @@ RopeTree *rope_tree;
 uint32_t line_num = 0;
 
 vec2s get_cursor_pos() {
-    return (vec2s){.x = cursor.x * _font->space_w,
-                   .y = (cursor.line->idx - 1) * _font->size * 1.5f};
+    return (vec2s){.x = cursor.column * _font->space_w,
+                   .y = (cursor.line) * _font->size * 1.5f};
 }
 
 void create_gl_context() {
@@ -144,9 +144,6 @@ vec2s render_text(RnState *state, const char *text, RnFont *font, vec2s pos,
 }
 
 void render(uint32_t render_w, uint32_t render_h) {
-    // printf("Cursor: Line: %d, X: %d, char_idx=%d\n", cursor.line->idx,
-    // cursor.x,
-    //        cursor.char_idx);
     glClear(GL_COLOR_BUFFER_BIT);
     vec4s clear_color = rn_color_to_zto(rn_color_from_hex(0x282828));
     glClearColor(clear_color.r, clear_color.g, clear_color.b, clear_color.a);
@@ -268,27 +265,11 @@ void render_bottom_bar(uint32_t render_w, uint32_t render_h, Window win,
     rn_resize_display(_state.render_state, render_w, render_h);
 
     rn_begin(_state.render_state);
-    //
-    // vec2s cursor_pos = get_cursor_pos();
-    //
-    // float x_offset = 0;
-    // if (cursor_pos.x >= render_w) {
-    //     x_offset = cursor_pos.x - render_w + _font->size;
-    // }
-    //
-    // float y_offset = 0;
-    // if (cursor_pos.y >= render_h) {
-    //     y_offset = cursor_pos.y - render_h + _font->size;
-    // }
 
     float x = 20;
     float y = render_h - 40;
 
     rn_text_render(_state.render_state, buffer, _font, (vec2s){x, y}, RN_WHITE);
-
-    // render_text(_state.render_state, buffer, _font, (vec2s){x, y}, RN_WHITE,
-    // -1,
-    //             True);
 
     rn_end(_state.render_state);
 
@@ -309,13 +290,8 @@ Line *add_new_line(Line *prev) {
 }
 
 char *open_bottom_bar(int window_width, int window_height) {
-    // Window new_window = XCreateSimpleWindow(
-    //     _state.dsp, _state.win, 0, window_height - 20, window_width, 20, 1,
-    //     BlackPixel(_state.dsp, 0), BlackPixel(_state.dsp, 0));
-    // XMapWindow(_state.dsp, new_window);
     bool is_bottom_bar_open = true;
     XSelectInput(_state.dsp, _state.win, ExposureMask | KeyPressMask);
-    // XSelectInput(_state.dsp, new_window, ExposureMask | KeyPressMask);
 
     char utf8_str[32];
     int idx = 0;
@@ -326,7 +302,6 @@ char *open_bottom_bar(int window_width, int window_height) {
         XNextEvent(_state.dsp, &general_event);
 
         switch (general_event.type) {
-            // case KeyRelease:
         case KeyPress: {
 
             XKeyPressedEvent *event = (XKeyPressedEvent *)&general_event;
@@ -349,7 +324,6 @@ char *open_bottom_bar(int window_width, int window_height) {
             //  render(window_width, window_height);
         } break;
         case Expose: {
-
             render_bottom_bar(window_width, window_height, _state.win, buff);
             // render(window_width, window_height);
 
@@ -417,8 +391,8 @@ int main() {
     Caretaker *undo_carataker = create_caretaker(carataker_capacity);
     Caretaker *redo_caretaker = create_caretaker(carataker_capacity);
 
-    cursor.line = add_new_line(nullptr);
-    head = cursor.line;
+    LineIndex line_index = {nullptr, nullptr, 0, 0};
+    add_line_to_index(&line_index, 0, 0);
 
     render(window_width, window_height);
     int is_window_open = 1;
@@ -427,7 +401,6 @@ int main() {
         XNextEvent(_state.dsp, &general_event);
 
         switch (general_event.type) {
-            // case KeyRelease:
         case KeyPress: {
             XKeyPressedEvent *event = (XKeyPressedEvent *)&general_event;
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Escape)) {
@@ -435,87 +408,97 @@ int main() {
                 break;
             }
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Return)) {
+                rope_tree =
+                    insert(rope_tree,
+                           line_column_to_offset(line_index, cursor.line,
+                                                 cursor.column++),
+                           "\n");
+                line_index.line_length[cursor.line]++;
 
-                rope_tree = insert(rope_tree, cursor.char_idx, "\n");
-                cursor.char_idx++;
-
-                if (cursor.x != cursor.line->length) {
-                    int32_t tmp = cursor.line->length;
-                    cursor.line->length = cursor.x;
-                    cursor.line = add_new_line(cursor.line);
-                    cursor.line->length = tmp - cursor.x;
+                if (cursor.column != line_index.line_length[cursor.line]) {
+                    size_t tmp = line_index.line_length[cursor.line];
+                    line_index.line_length[cursor.line] = cursor.column;
+                    add_line_to_index(
+                        &line_index,
+                        line_column_to_offset(line_index, cursor.line,
+                                              cursor.column),
+                        tmp - line_index.line_length[cursor.line]);
+                    cursor.line++;
                 } else {
-                    cursor.line = add_new_line(cursor.line);
+                    add_line_to_index(&line_index,
+                                      line_column_to_offset(line_index,
+                                                            cursor.line++,
+                                                            cursor.column),
+                                      0);
                 }
-
-                cursor.x = 0;
-                cursor.x_swap = cursor.x;
+                cursor.column = 0;
+                cursor.desired_column = cursor.column;
                 render(window_width, window_height);
                 break;
             }
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Left)) {
-                if (cursor.x - 1 >= 0) {
-                    cursor.x--;
-                    cursor.char_idx--;
-                } else if (cursor.line->idx - 1 > 0) {
-                    cursor.line = cursor.line->prev;
-                    cursor.x = cursor.line->length;
-                    cursor.char_idx -= 1;
+                if (cursor.column > 0) {
+                    cursor.column--;
+                } else if (cursor.line > 0) {
+                    cursor.line--;
+                    cursor.column = line_index.line_length[cursor.line] - 1;
                 }
-                cursor.x_swap = cursor.x;
+                cursor.desired_column = cursor.column;
                 render(window_width, window_height);
                 break;
             }
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Right)) {
-                if (cursor.x + 1 <= cursor.line->length) {
-                    cursor.x++;
-                    cursor.char_idx++;
-                } else if (cursor.line->idx + 1 <= line_num) {
-                    cursor.x = 0;
-                    cursor.line = cursor.line->next;
-                    cursor.char_idx += 1;
+                if ((cursor.line != line_index.line_num - 1 &&
+                     cursor.column < line_index.line_length[cursor.line] - 1) ||
+                    (cursor.line == line_index.line_num - 1 &&
+                     cursor.column < line_index.line_length[cursor.line])) {
+                    cursor.column++;
+                } else if (cursor.line + 1 < line_index.line_num) {
+                    cursor.column = 0;
+                    cursor.line++;
                 }
-                cursor.x_swap = cursor.x;
+                cursor.desired_column = cursor.column;
                 render(window_width, window_height);
                 break;
             }
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_BackSpace)) {
-                // if (cursor.x == cursor.line->length) {
-                //     cursor.char_idx--;
-                // }
-                cursor.line->length--;
-                if (cursor.x - 1 >= 0) {
-                    cursor.x--;
-                } else if (cursor.line->idx - 1 > 0) {
-                    cursor.line = cursor.line->prev;
-                    cursor.x = cursor.line->length;
-                    line_num--;
+                line_index.line_length[cursor.line]--;
+                if (cursor.column > 0) {
+                    cursor.column--;
+                } else if (cursor.line > 0) {
+                    delete_line_from_index(&line_index, cursor.line--);
+                    cursor.column = line_index.line_length[cursor.line];
                 }
-                if (cursor.char_idx - 1 >= 0) {
-                    cursor.char_idx -= 1;
-                    rope_tree = rope_delete(rope_tree, cursor.char_idx, 1);
-                }
+                rope_tree =
+                    rope_delete(rope_tree,
+                                line_column_to_offset(line_index, cursor.line,
+                                                      cursor.column),
+                                1);
+
+                cursor.desired_column = cursor.column;
                 render(window_width, window_height);
                 break;
             }
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Up)) {
-                if (cursor.line->idx - 1 > 0) {
-                    int32_t tmp_x = cursor.x;
-                    cursor.line = cursor.line->prev;
-                    cursor.x = MIN(cursor.line->length, cursor.x_swap);
-                    cursor.char_idx -=
-                        (tmp_x + cursor.line->length - cursor.x + 1);
+                if (cursor.line > 0) {
+                    cursor.line--;
+                    size_t line_lenght =
+                        cursor.line == line_index.line_num - 1
+                            ? line_index.line_length[cursor.line]
+                            : line_index.line_length[cursor.line] - 1;
+                    cursor.column = MIN(line_lenght, cursor.desired_column);
                 }
                 render(window_width, window_height);
                 break;
             }
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_Down)) {
-                if (cursor.line->idx + 1 <= line_num) {
-                    int32_t tmp_x = cursor.x;
-                    cursor.line = cursor.line->next;
-                    cursor.x = MIN(cursor.line->length, cursor.x_swap);
-                    cursor.char_idx +=
-                        cursor.line->prev->length - tmp_x + cursor.x + 1;
+                if (cursor.line < line_index.line_num - 1) {
+                    cursor.line++;
+                    size_t line_lenght =
+                        cursor.line == line_index.line_num - 1
+                            ? line_index.line_length[cursor.line]
+                            : line_index.line_length[cursor.line] - 1;
+                    cursor.column = MIN(line_lenght, cursor.desired_column);
                 }
                 render(window_width, window_height);
                 break;
@@ -579,7 +562,6 @@ int main() {
                     size_t read = fread(chunks[i], 1, CHUNK_BASE, fp);
                     chunks[i][read] = '\0';
                 }
-                // Get lines data
                 fclose(fp);
                 rope_tree = build_rope(chunks, 0, chunk_num - 1);
                 for (size_t i = 0; i < chunk_num; ++i) {
@@ -587,43 +569,21 @@ int main() {
                 }
                 free(chunks);
 
-                fp = fopen(f_path, "r");
+                List *leaves = get_leaves(rope_tree);
+                travelse_list_and_index_lines(leaves, &line_index);
+                cursor.line = line_index.line_num - 1;
+                cursor.column = line_index.line_length[cursor.line];
 
-                char c;
-                while (cursor.line) {
-                    Line *tmp = cursor.line;
-                    cursor.line = cursor.line->next;
-                    free(tmp);
-                }
-                line_num = 0;
-                size_t current_line_char_count = 0;
-                size_t char_count = 0;
-                while ((c = fgetc(fp)) != EOF) {
-                    char_count++;
-                    if (c == '\n') {
-                        cursor.line = add_new_line(cursor.line);
-                        cursor.line->length = current_line_char_count;
-                        line_num++;
-                    } else {
-                        current_line_char_count++;
-                    }
-                }
-
-                cursor.line = add_new_line(cursor.line);
-                cursor.line->length = current_line_char_count;
-                fclose(fp);
-                cursor.x = cursor.line->length;
+                render(window_width, window_height);
                 break;
             }
-
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_U) &&
                 event->state & ControlMask) {
                 Memento *m = pop_memento(undo_carataker);
                 save_memento(redo_caretaker, m);
                 rope_tree = restore_from_memento(m, &head);
-                // cursor = m->cursor_state;
-                cursor.line = head;
-                cursor.x = 0;
+                cursor.line = 0;
+                cursor.column = 0;
                 render(window_width, window_height);
                 break;
             }
@@ -632,19 +592,11 @@ int main() {
                 Memento *m = pop_memento(redo_caretaker);
                 save_memento(undo_carataker, m);
                 rope_tree = restore_from_memento(m, &head);
-                // cursor = m->cursor_state;
-                cursor.line = head;
-                cursor.x = 0;
+                cursor.line = 0;
+                cursor.column = 0;
                 render(window_width, window_height);
                 break;
             }
-            // if (event->keycode == XKeysymToKeycode(_state.dsp, XK_U) &&
-            //     event->state & ControlMask) {
-            //     rope_tree = restore_from_memento(m);
-            //     cursor = prev_cursor;
-            //     render(window_width, window_height);
-            //     break;
-            // }
 
             KeySym key_sym;
             char utf8_str[32];
@@ -658,12 +610,14 @@ int main() {
                 Memento *m = create_memento(rope_tree, head);
                 save_memento(undo_carataker, m);
                 clear_caretaker(redo_caretaker);
-                rope_tree = insert(rope_tree, cursor.char_idx, utf8_str);
-                cursor.char_idx++;
-                cursor.x++;
-                cursor.line->length++;
+                rope_tree = insert(rope_tree,
+                                   line_column_to_offset(
+                                       line_index, cursor.line, cursor.column),
+                                   utf8_str);
+                cursor.column++;
+                cursor.desired_column = cursor.column;
+                line_index.line_length[cursor.line]++;
             }
-            // print_RT("", rope_tree->root, false);
             render(window_width, window_height);
         } break;
         case ClientMessage: {
