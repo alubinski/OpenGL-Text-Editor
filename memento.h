@@ -9,6 +9,9 @@
 
 typedef struct Memento {
     char *serialized_rope;
+    size_t cursor_line;
+    size_t cursor_column;
+    size_t cursor_desired_column;
 } Memento;
 
 typedef struct Caretaker {

@@ -136,6 +136,9 @@ Memento *get_memento(Caretaker *c, size_t idx) {
 }
 
 Memento *pop_memento(Caretaker *c) {
+    if (c->size == 0) {
+        return nullptr;
+    }
     Memento *m = get_memento(c, c->size - 1);
     c->size--;
     return m;

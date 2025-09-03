@@ -563,6 +563,8 @@ int main() {
                     chunks[i][read] = '\0';
                 }
                 fclose(fp);
+                free_tree(rope_tree->root);
+                free(rope_tree);
                 rope_tree = build_rope(chunks, 0, chunk_num - 1);
                 for (size_t i = 0; i < chunk_num; ++i) {
                     free(chunks[i]);
@@ -573,6 +575,7 @@ int main() {
                 travelse_list_and_index_lines(leaves, &line_index);
                 cursor.line = line_index.line_num - 1;
                 cursor.column = line_index.line_length[cursor.line];
+                free_list(leaves);
 
                 render(window_width, window_height);
                 break;
@@ -580,20 +583,36 @@ int main() {
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_U) &&
                 event->state & ControlMask) {
                 Memento *m = pop_memento(undo_carataker);
+                if (!m)
+                    break;
                 save_memento(redo_caretaker, m);
+                free_tree(rope_tree->root);
+                free(rope_tree);
                 rope_tree = restore_from_memento(m, &head);
-                cursor.line = 0;
-                cursor.column = 0;
+                List *leaves = get_leaves(rope_tree);
+                travelse_list_and_index_lines(leaves, &line_index);
+                free_list(leaves);
+                cursor.line = m->cursor_line;
+                cursor.column = m->cursor_column;
+                cursor.desired_column = m->cursor_desired_column;
                 render(window_width, window_height);
                 break;
             }
             if (event->keycode == XKeysymToKeycode(_state.dsp, XK_R) &&
                 event->state & ControlMask) {
                 Memento *m = pop_memento(redo_caretaker);
+                if (!m)
+                    break;
                 save_memento(undo_carataker, m);
+                free_tree(rope_tree->root);
+                free(rope_tree);
                 rope_tree = restore_from_memento(m, &head);
-                cursor.line = 0;
-                cursor.column = 0;
+                List *leaves = get_leaves(rope_tree);
+                travelse_list_and_index_lines(leaves, &line_index);
+                free_list(leaves);
+                cursor.line = m->cursor_line;
+                cursor.column = m->cursor_column;
+                cursor.desired_column = m->cursor_desired_column;
                 render(window_width, window_height);
                 break;
             }
@@ -608,6 +627,9 @@ int main() {
 
             if (len_utf8_str != 0) {
                 Memento *m = create_memento(rope_tree, head);
+                m->cursor_line = cursor.line;
+                m->cursor_column = cursor.column;
+                m->cursor_desired_column = cursor.desired_column;
                 save_memento(undo_carataker, m);
                 clear_caretaker(redo_caretaker);
                 rope_tree = insert(rope_tree,
@@ -631,5 +653,7 @@ int main() {
         }
     }
 
+    free_tree(rope_tree->root);
+    free(rope_tree);
     return 0;
 }

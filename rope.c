@@ -162,8 +162,6 @@ RopeTree *rope_delete(RopeTree *tree, uint32_t start, uint32_t length) {
     Node *first_split_left;
     Node *first_split_right;
     split(tree->root, start, &first_split_left, &first_split_right);
-    print_RT("", first_split_left, false);
-    print_RT("", first_split_right, false);
 
     Node *second_split__left;
     Node *second_split_right;
@@ -433,7 +431,6 @@ void free_internal_nodes(Node *root) {
 void free_list(List *list) {
     while (list) {
         List *tmp = list;
-        // printf("Freeing node at %p\n", (void *)tmp);
         list = list->next;
         free(tmp);
     }
